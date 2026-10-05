@@ -1,0 +1,6 @@
+{
+  "name": "Spitfire City Bomber",
+  "description": "Tactical 2D arcade bomber where you pilot a vintage Spitfire, executing tight standing loops and precision bomb drops to destroy enemy buildings while protecting civilian infrastructure.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
