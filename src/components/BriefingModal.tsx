@@ -81,10 +81,10 @@ export const BriefingModal: React.FC<BriefingModalProps> = ({
             <div className="p-3.5 rounded-xl bg-stone-800/70 border border-rose-500/30 space-y-1.5">
               <div className="flex items-center gap-2 text-rose-400 font-bold font-['Cabinet_Grotesk'] text-sm">
                 <ShieldCheck className="w-4 h-4 text-rose-400" />
-                Button C · Gunfire [F / C]
+                Button C · Gunfire [HOLD F / C]
               </div>
               <p className="text-xs text-stone-400 leading-relaxed">
-                Fires rapid twin <strong className="text-stone-200">.303 machine gun streams</strong> to intercept incoming rockets in mid-air and strafe radar dishes.
+                Fires rapid quad <strong className="text-stone-200">.303 Browning machine guns</strong>. Shoots down airborne missiles and disables rooftop radar dishes & missile silos. Heavy bunkers and AA guns require <strong className="text-amber-300">Bombs</strong> to demolish.
               </p>
             </div>
           </div>

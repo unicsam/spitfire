@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { RotateCcw, AlertTriangle } from 'lucide-react';
 import { MissionStats } from '../types/game';
+import { sound } from '../audio/soundEngine';
 
 interface GameOverModalProps {
   stats: MissionStats;
@@ -13,6 +14,9 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
   highScore,
   onRestart,
 }) => {
+  useEffect(() => {
+    sound.stopAll();
+  }, []);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/85 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="w-full max-w-md bg-stone-900 border border-stone-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col">

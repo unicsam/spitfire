@@ -20,15 +20,15 @@ export const MISSILE_TURN_RATE = 1.35;         // Max steering angle per sec (ra
 export const MISSILE_FUEL_DURATION = 5.2;      // Lifespan
 export const MISSILE_DETECTION_RANGE = 480;    // Proximity detection
 
-// Hull Armor & Gunfire System (Smaller Damage)
+// Hull Armor & Gunfire System (Intense Gunfire & Strafing)
 export const PLANE_MAX_HULL = 100;
-export const ENEMY_BULLET_DAMAGE = 10;          // Smaller chipping damage (10% of hull)
+export const ENEMY_BULLET_DAMAGE = 8;           // Observable anti-aircraft tracer chipping damage
 export const ENEMY_MISSILE_DAMAGE = 50;         // Catastrophic heavy blast damage (50% of hull)
-export const PLAYER_BULLET_DAMAGE = 20;
-export const PLAYER_BULLET_SPEED = 480;         // High-velocity .303 Browning stream
-export const ENEMY_BULLET_SPEED = 240;          // Observable anti-aircraft tracer shell speed
-export const MACHINE_GUN_COOLDOWN = 0.11;       // Rapid staccato burst rate
-export const AA_GUN_RANGE = 380;                // Flak & machine gun range
+export const PLAYER_BULLET_DAMAGE = 25;         // Strafe damage: 4-5 direct hits demolishes enemy installations!
+export const PLAYER_BULLET_SPEED = 540;         // High-velocity .303 Browning stream
+export const ENEMY_BULLET_SPEED = 260;          // Observable anti-aircraft tracer shell speed
+export const MACHINE_GUN_COOLDOWN = 0.065;      // High-cadence automatic machine gun rate
+export const AA_GUN_RANGE = 460;                // Flak & anti-aircraft barrage range
 
 // Scoring
 export const SCORE_ENEMY_DESTROYED = 250;

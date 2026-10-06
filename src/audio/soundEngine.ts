@@ -11,6 +11,7 @@ class SoundEngine {
   private engineGain: GainNode | null = null;
   private engineFilter: BiquadFilterNode | null = null;
   private isEngineRunning: boolean = false;
+  private activeNodes: Set<OscillatorNode | AudioBufferSourceNode> = new Set();
 
   private initContext() {
     if (!this.ctx) {
@@ -22,12 +23,17 @@ class SoundEngine {
     }
   }
 
+  private registerNode(node: OscillatorNode | AudioBufferSourceNode) {
+    this.activeNodes.add(node);
+    node.onended = () => {
+      this.activeNodes.delete(node);
+    };
+  }
+
   public setMuted(muted: boolean) {
     this.isMuted = muted;
     if (this.isMuted) {
-      this.stopEngine();
-    } else {
-      this.startEngine();
+      this.stopAll();
     }
   }
 
@@ -46,6 +52,9 @@ class SoundEngine {
       this.initContext();
       if (!this.ctx) return;
 
+      // Always clear any existing engine node first
+      this.stopEngine();
+
       const now = this.ctx.currentTime;
       // Merlin V12 Engine Drone: Sawtooth through lowpass filter
       const osc = this.ctx.createOscillator();
@@ -59,7 +68,7 @@ class SoundEngine {
       filter.frequency.setValueAtTime(260, now);
 
       gain.gain.setValueAtTime(0.001, now);
-      gain.gain.linearRampToValueAtTime(0.08, now + 0.5);
+      gain.gain.linearRampToValueAtTime(0.08, now + 0.35);
 
       osc.connect(filter);
       filter.connect(gain);
@@ -94,26 +103,49 @@ class SoundEngine {
   }
 
   public stopEngine() {
-    if (!this.isEngineRunning) return;
+    this.isEngineRunning = false;
     try {
       if (this.engineGain && this.ctx) {
-        this.engineGain.gain.setValueAtTime(this.engineGain.gain.value, this.ctx.currentTime);
-        this.engineGain.gain.linearRampToValueAtTime(0.0001, this.ctx.currentTime + 0.2);
-        setTimeout(() => {
-          this.engineOsc?.stop();
-          this.engineOsc?.disconnect();
-          this.engineGain?.disconnect();
-          this.engineFilter?.disconnect();
-          this.engineOsc = null;
-          this.engineGain = null;
-          this.engineFilter = null;
-          this.isEngineRunning = false;
-        }, 220);
-      } else {
-        this.isEngineRunning = false;
+        try {
+          this.engineGain.gain.cancelScheduledValues(this.ctx.currentTime);
+          this.engineGain.gain.setValueAtTime(0, this.ctx.currentTime);
+        } catch {}
+      }
+      if (this.engineOsc) {
+        try {
+          this.engineOsc.stop(0);
+          this.engineOsc.disconnect();
+        } catch {}
+      }
+      if (this.engineGain) {
+        try { this.engineGain.disconnect(); } catch {}
+      }
+      if (this.engineFilter) {
+        try { this.engineFilter.disconnect(); } catch {}
       }
     } catch {
-      this.isEngineRunning = false;
+      // Ignored
+    }
+    this.engineOsc = null;
+    this.engineGain = null;
+    this.engineFilter = null;
+  }
+
+  /**
+   * Complete silence: immediately shuts down plane engine drone and cuts all playing sound nodes.
+   */
+  public stopAll() {
+    this.stopEngine();
+    try {
+      for (const node of this.activeNodes) {
+        try {
+          node.stop(0);
+          node.disconnect();
+        } catch {}
+      }
+      this.activeNodes.clear();
+    } catch {
+      // Ignored
     }
   }
 
@@ -459,6 +491,63 @@ class SoundEngine {
       gain.connect(this.ctx.destination);
       osc.start(now);
       osc.stop(now + 1.9);
+      this.registerNode(osc);
+    } catch {
+      // Ignore
+    }
+  }
+
+  public playRadarZap() {
+    if (this.isMuted) return;
+    this.initContext();
+    if (!this.ctx) return;
+
+    try {
+      const now = this.ctx.currentTime;
+      // High-voltage electrical arc short-circuit buzz
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(880, now);
+      osc.frequency.linearRampToValueAtTime(140, now + 0.18);
+
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.22);
+      this.registerNode(osc);
+    } catch {
+      // Ignore
+    }
+  }
+
+  public playPodDisabled() {
+    if (this.isMuted) return;
+    this.initContext();
+    if (!this.ctx) return;
+
+    try {
+      const now = this.ctx.currentTime;
+      // Heavy mechanical latch snap and steam blowout
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(340, now);
+      osc.frequency.exponentialRampToValueAtTime(60, now + 0.16);
+
+      gain.gain.setValueAtTime(0.22, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.2);
+      this.registerNode(osc);
     } catch {
       // Ignore
     }

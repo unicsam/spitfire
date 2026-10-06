@@ -4,6 +4,8 @@ import { Crosshair, RotateCcw, Zap } from 'lucide-react';
 interface ArcadeControlsProps {
   onDropBomb: () => void;
   onFireGuns?: () => void;
+  onFireGunsStart?: () => void;
+  onFireGunsEnd?: () => void;
   onStandingLoopStart: () => void;
   onStandingLoopEnd: () => void;
   bombCooldown: number;
@@ -14,6 +16,8 @@ interface ArcadeControlsProps {
 export const ArcadeControls: React.FC<ArcadeControlsProps> = ({
   onDropBomb,
   onFireGuns,
+  onFireGunsStart,
+  onFireGunsEnd,
   onStandingLoopStart,
   onStandingLoopEnd,
   bombCooldown,
@@ -110,6 +114,20 @@ export const ArcadeControls: React.FC<ArcadeControlsProps> = ({
 
       {/* Button C: Machine Gunfire */}
       <button
+        onPointerDown={(e) => {
+          e.preventDefault();
+          onFireGunsStart?.();
+        }}
+        onPointerUp={(e) => {
+          e.preventDefault();
+          onFireGunsEnd?.();
+        }}
+        onPointerLeave={() => {
+          onFireGunsEnd?.();
+        }}
+        onPointerCancel={() => {
+          onFireGunsEnd?.();
+        }}
         onClick={onFireGuns}
         disabled={disabled}
         className={`group relative flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all duration-150 active:scale-[0.98] ${
@@ -117,7 +135,7 @@ export const ArcadeControls: React.FC<ArcadeControlsProps> = ({
             ? 'bg-rose-700 hover:bg-rose-600 border-rose-400 text-white shadow-lg shadow-rose-950/40 cursor-pointer active:translate-y-0.5'
             : 'bg-stone-800/80 border-stone-700 text-stone-500 cursor-not-allowed opacity-60'
         }`}
-        aria-label="Fire .303 Browning Machine Guns"
+        aria-label="Hold to Fire Quad .303 Browning Machine Guns"
       >
         <div className="flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-lg bg-black/25 flex items-center justify-center border border-white/20">
@@ -128,14 +146,14 @@ export const ArcadeControls: React.FC<ArcadeControlsProps> = ({
               Button C · Gunfire
             </div>
             <div className="text-[10px] text-rose-100 font-medium font-['Outfit'] mt-1">
-              Twin .303 · Shoot Missiles
+              Quad .303 · Shred Missiles & Disarm Pods
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-1.5">
           <span className="hidden md:inline-block px-2 py-0.5 text-xs font-bold font-mono bg-black/30 text-white rounded border border-white/20">
-            [F] / [C]
+            HOLD [F] / [C]
           </span>
         </div>
       </button>

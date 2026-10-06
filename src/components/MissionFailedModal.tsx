@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { RotateCcw, AlertOctagon, Target, ArrowLeft } from 'lucide-react';
 import { MissionStats, SectorConfig } from '../types/game';
+import { sound } from '../audio/soundEngine';
 
 interface MissionFailedModalProps {
   stats: MissionStats;
@@ -15,6 +16,9 @@ export const MissionFailedModal: React.FC<MissionFailedModalProps> = ({
   onRetry,
   onRestartAll,
 }) => {
+  useEffect(() => {
+    sound.stopAll();
+  }, []);
   const missedCount = Math.max(0, stats.enemyTotal - stats.enemyNeutralized);
 
   return (

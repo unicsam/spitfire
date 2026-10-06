@@ -23,6 +23,8 @@ export default function App() {
     currentSectorConfig,
     dropBomb,
     fireMachineGun,
+    startMachineGun,
+    stopMachineGun,
     performStandingLoop,
     startStandingLoop,
     stopStandingLoop,
@@ -141,6 +143,8 @@ export default function App() {
         <ArcadeControls
           onDropBomb={dropBomb}
           onFireGuns={fireMachineGun}
+          onFireGunsStart={startMachineGun}
+          onFireGunsEnd={stopMachineGun}
           onStandingLoopStart={startStandingLoop}
           onStandingLoopEnd={stopStandingLoop}
           bombCooldown={bombCooldownRemaining}
@@ -154,7 +158,7 @@ export default function App() {
         <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-between text-[11px] font-['Outfit'] text-stone-400">
           <div className="flex items-center gap-4">
             <span><kbd className="font-mono px-1 py-0.5 bg-stone-800 rounded border border-stone-700 text-stone-200">SPACE</kbd> Drop Bomb</span>
-            <span><kbd className="font-mono px-1 py-0.5 bg-stone-800 rounded border border-stone-700 text-stone-200">[F] / [C]</kbd> Machine Guns</span>
+            <span><kbd className="font-mono px-1 py-0.5 bg-stone-800 rounded border border-stone-700 text-stone-200">HOLD [F] / [C]</kbd> Machine Guns</span>
             <span><kbd className="font-mono px-1 py-0.5 bg-stone-800 rounded border border-stone-700 text-stone-200">HOLD W / UP</kbd> Standing Loop</span>
             <span><kbd className="font-mono px-1 py-0.5 bg-stone-800 rounded border border-stone-700 text-stone-200">P</kbd> Pause</span>
             <span><kbd className="font-mono px-1 py-0.5 bg-stone-800 rounded border border-stone-700 text-stone-200">M</kbd> Mute</span>

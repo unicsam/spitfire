@@ -28,6 +28,8 @@ export interface Building {
   isJammed?: boolean;
   radarTrackAngle?: number;
   linkedRadarId?: string;
+  radarDisabled?: boolean;
+  missilePodDisabled?: boolean;
   aaGunCooldown?: number;
   aaBurstCount?: number;
   aaBurstTimer?: number;
@@ -125,6 +127,7 @@ export interface SpitfirePlane {
   standingLoopCooldown: number;
   machineGunCooldown: number;
   isCrashing?: boolean;    // Fatal dive towards ground / targets
+  isDestroyed?: boolean;   // Aircraft completely obliterated on impact
   crashVx?: number;
   crashVy?: number;
   crashAngle?: number;

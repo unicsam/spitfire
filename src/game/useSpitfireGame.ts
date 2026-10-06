@@ -110,6 +110,7 @@ export function useSpitfireGame() {
   const cameraXRef = useRef<number>(0);
   const loopCameraAnchorRef = useRef<number>(0);
   const isLoopHeldRef = useRef<boolean>(false);
+  const isGunHeldRef = useRef<boolean>(false);
   const keysRef = useRef<{ [key: string]: boolean }>({});
   const animationFrameIdRef = useRef<number | null>(null);
 
@@ -162,6 +163,7 @@ export function useSpitfireGame() {
       standingLoopCooldown: 0,
       machineGunCooldown: 0,
       isCrashing: false,
+      isDestroyed: false,
     };
 
     cameraXRef.current = 0;
@@ -269,7 +271,7 @@ export function useSpitfireGame() {
   const fireMachineGun = useCallback(() => {
     if (gameState !== 'PLAYING') return;
     const plane = planeRef.current;
-    if (plane.isTurning180 || plane.machineGunCooldown > 0) return;
+    if (plane.isTurning180 || plane.isCrashing || plane.machineGunCooldown > 0) return;
 
     plane.machineGunCooldown = MACHINE_GUN_COOLDOWN;
     const dir = plane.direction;
@@ -277,12 +279,12 @@ export function useSpitfireGame() {
     const cosA = Math.cos(angles);
     const sinA = Math.sin(angles);
 
-    // Twin Browning .303 machine gun stream from port and starboard wing roots
-    [-5, 5].forEach((offsetY) => {
+    // Quad Browning .303 machine gun battery (port and starboard wing pairs)
+    [-8, -3, 3, 8].forEach((offsetY) => {
       const muzzleX = plane.x + cosA * (dir * 22) - sinA * offsetY;
       const muzzleY = plane.y + sinA * (dir * 22) + cosA * offsetY;
       const bulletVx = dir * PLAYER_BULLET_SPEED * cosA;
-      const bulletVy = dir * PLAYER_BULLET_SPEED * sinA;
+      const bulletVy = dir * PLAYER_BULLET_SPEED * sinA + (Math.random() - 0.5) * 12;
 
       bulletsRef.current.push({
         id: `bullet-p-${Date.now()}-${Math.random()}`,
@@ -293,13 +295,50 @@ export function useSpitfireGame() {
         isPlayer: true,
         damage: PLAYER_BULLET_DAMAGE,
         alive: true,
-        life: 1.0,
-        color: '#fef08a',
+        life: 1.1,
+        color: Math.random() > 0.3 ? '#fef08a' : '#f59e0b',
       });
+
+      // Muzzle flash sparks
+      particlesRef.current.push({
+        x: muzzleX,
+        y: muzzleY,
+        vx: bulletVx * 0.12 + (Math.random() - 0.5) * 20,
+        vy: bulletVy * 0.12 + (Math.random() - 0.5) * 20,
+        color: '#fef08a',
+        size: 2.2,
+        maxLife: 0.08,
+        life: 0.08,
+        type: 'spark',
+        alpha: 0.95,
+      });
+    });
+
+    // Ejected hot brass shell casings
+    particlesRef.current.push({
+      x: plane.x - dir * 8,
+      y: plane.y + 4,
+      vx: -dir * (35 + Math.random() * 25),
+      vy: 45 + Math.random() * 35,
+      color: '#eab308',
+      size: 1.5,
+      maxLife: 0.35,
+      life: 0.35,
+      type: 'debris',
+      alpha: 0.8,
     });
 
     sound.playMachineGun();
   }, [gameState]);
+
+  const startMachineGun = useCallback(() => {
+    isGunHeldRef.current = true;
+    fireMachineGun();
+  }, [fireMachineGun]);
+
+  const stopMachineGun = useCallback(() => {
+    isGunHeldRef.current = false;
+  }, []);
 
   // Particle helper
   const spawnExplosion = useCallback((x: number, y: number, isLarge: boolean = false) => {
@@ -334,6 +373,45 @@ export function useSpitfireGame() {
       type: 'shockwave',
       alpha: 0.8,
     });
+
+    // Detonation smoke plume (voluminous rising mushroom cap)
+    const smokeCount = isLarge ? 18 : 6;
+    for (let i = 0; i < smokeCount; i++) {
+      const angle = -Math.PI / 2 + (Math.random() - 0.5) * 1.4;
+      const speed = 25 + Math.random() * (isLarge ? 75 : 45);
+      particlesRef.current.push({
+        x: x + (Math.random() - 0.5) * (isLarge ? 20 : 8),
+        y: y + (Math.random() - 0.5) * 10,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        color: ['#141210', '#1c1917', '#292524', '#44403c', '#57534e'][Math.floor(Math.random() * 5)],
+        size: (isLarge ? 4.5 : 2.8) + Math.random() * 3.5,
+        maxLife: 1.3 + Math.random() * 0.9,
+        life: 1.3 + Math.random() * 0.9,
+        type: 'smoke',
+        alpha: 0.85,
+      });
+    }
+
+    // Heavy masonry & brick shrapnel debris
+    if (isLarge) {
+      for (let i = 0; i < 12; i++) {
+        const a = -Math.PI / 2 + (Math.random() - 0.5) * 1.6;
+        const spd = 60 + Math.random() * 100;
+        particlesRef.current.push({
+          x,
+          y,
+          vx: Math.cos(a) * spd,
+          vy: Math.sin(a) * spd,
+          color: ['#78350f', '#451a03', '#292524', '#78716c', '#dc2626'][Math.floor(Math.random() * 5)],
+          size: 2 + Math.random() * 2.5,
+          maxLife: 0.85,
+          life: 0.85,
+          type: 'debris',
+          alpha: 1,
+        });
+      }
+    }
   }, []);
 
   const addFloatingText = useCallback((text: string, x: number, y: number, color: string, isPenalty: boolean = false) => {
@@ -405,277 +483,6 @@ export function useSpitfireGame() {
 
     // Propeller spinning
     plane.propellerAngle += dt * 38;
-
-    // 1. Plane Movement (Fatal Crash Dive, 180 Combat Turn, Standing Loop, or Cruising)
-    if (plane.isCrashing) {
-      // Allow slight player steering during the crash dive so they can aim onto enemy targets!
-      let steerForward = 0;
-      if (keysRef.current['arrowleft'] || keysRef.current['a']) {
-        steerForward -= 70 * dt * plane.direction;
-      }
-      if (keysRef.current['arrowright'] || keysRef.current['d']) {
-        steerForward += 70 * dt * plane.direction;
-      }
-      let steerVertical = 0;
-      if (keysRef.current['arrowup'] || keysRef.current['w']) {
-        steerVertical -= 50 * dt; // Shallow glide
-      }
-      if (keysRef.current['arrowdown'] || keysRef.current['s'] || keysRef.current[' ']) {
-        steerVertical += 90 * dt; // Steep dive bomb!
-      }
-
-      plane.crashVx = (plane.crashVx ?? plane.direction * 100) + steerForward * plane.direction;
-      plane.crashVy = Math.max(25, (plane.crashVy ?? 35) + (230 + steerVertical) * dt);
-
-      plane.x += plane.crashVx * dt;
-      plane.y += plane.crashVy * dt;
-      plane.angle = Math.atan2(plane.crashVy, plane.crashVx);
-
-      // Camera smoothly follows falling aircraft
-      const targetCam = plane.direction === 1 ? plane.x - 220 : plane.x - 700;
-      cameraXRef.current += (targetCam - cameraXRef.current) * Math.min(1, dt * 7);
-
-      // Heavy trailing fire and smoke plume
-      for (let s = 0; s < 2; s++) {
-        particlesRef.current.push({
-          x: plane.x + (Math.random() - 0.5) * 6,
-          y: plane.y + (Math.random() - 0.5) * 6,
-          vx: -plane.crashVx * 0.35 + (Math.random() - 0.5) * 25,
-          vy: -plane.crashVy * 0.35 + (Math.random() - 0.5) * 25 - 6,
-          color: ['#171717', '#262626', '#ea580c', '#f59e0b', '#78716c'][Math.floor(Math.random() * 5)],
-          size: 3.5 + Math.random() * 4,
-          maxLife: 0.65 + Math.random() * 0.35,
-          life: 0.65 + Math.random() * 0.35,
-          type: Math.random() > 0.5 ? 'fire' : 'smoke',
-          alpha: 0.9,
-        });
-      }
-
-      // Check Building Collision while crashing down
-      let crashResolved = false;
-      for (const bldg of buildingsRef.current) {
-        if (bldg.destroyed) continue;
-        const bldgTop = GROUND_Y - bldg.height;
-        const hitX = plane.x >= bldg.x - 8 && plane.x <= bldg.x + bldg.width + 8;
-        const hitY = plane.y >= bldgTop && plane.y <= GROUND_Y;
-
-        if (hitX && hitY) {
-          plane.isCrashing = false;
-          crashResolved = true;
-          spawnExplosion(plane.x, plane.y, true);
-          sound.playExplosion(true);
-          rendererRef.current?.triggerScreenShake(16, 0.6);
-
-          if (bldg.type === 'ENEMY') {
-            // HEROIC SACRIFICE / KAMIKAZE TARGET HIT!
-            handleBuildingDestruction(bldg, true, false);
-            addFloatingText("HEROIC CRASH IMPACT! +500", plane.x, bldgTop - 25, '#22c55e');
-            setStats(prev => ({ ...prev, score: prev.score + 500 }));
-
-            // Check if all enemy targets destroyed -> MISSION CLEARED!
-            const remaining = buildingsRef.current.filter(b => b.type === 'ENEMY' && !b.destroyed).length;
-            if (remaining === 0) {
-              setTimeout(() => {
-                setStats(prev => ({ ...prev, score: prev.score + BONUS_SECTOR_CLEAR }));
-                sound.playVictoryFanfare();
-                setGameState('SECTOR_CLEAR');
-              }, 700);
-              return;
-            }
-          } else {
-            handleBuildingDestruction(bldg, true, false);
-            addFloatingText("CRASH LANDING COLLATERAL!", plane.x, bldgTop - 25, '#ef4444', true);
-          }
-
-          setTimeout(() => {
-            setGameState('GAME_OVER');
-          }, 1100);
-          return;
-        }
-      }
-
-      if (crashResolved) return;
-
-      // Check Ground Collision while crashing down
-      if (plane.y >= GROUND_Y - 4) {
-        plane.isCrashing = false;
-        spawnExplosion(plane.x, GROUND_Y, true);
-        sound.playExplosion(false);
-        rendererRef.current?.triggerScreenShake(14, 0.5);
-        addFloatingText("AIRCRAFT DESTROYED ON IMPACT", plane.x, GROUND_Y - 25, '#ef4444', true);
-
-        // Ground crash blast catches adjacent enemy buildings!
-        for (const bldg of buildingsRef.current) {
-          if (bldg.destroyed) continue;
-          const distToBldg = Math.abs(plane.x - (bldg.x + bldg.width / 2));
-          if (distToBldg < (bldg.width / 2 + 30)) {
-            if (bldg.type === 'ENEMY') {
-              handleBuildingDestruction(bldg, true, false);
-              addFloatingText("CRASH BLAST DESTROYED BASE! +500", plane.x, GROUND_Y - 35, '#22c55e');
-              setStats(prev => ({ ...prev, score: prev.score + 500 }));
-
-              const remaining = buildingsRef.current.filter(b => b.type === 'ENEMY' && !b.destroyed).length;
-              if (remaining === 0) {
-                setTimeout(() => {
-                  setStats(prev => ({ ...prev, score: prev.score + BONUS_SECTOR_CLEAR }));
-                  sound.playVictoryFanfare();
-                  setGameState('SECTOR_CLEAR');
-                }, 700);
-                return;
-              }
-            }
-            break;
-          }
-        }
-
-        setTimeout(() => {
-          setGameState('GAME_OVER');
-        }, 1000);
-        return;
-      }
-    } else if (plane.isTurning180) {
-      plane.turnProgress += dt / plane.turnDuration;
-      const p = plane.turnProgress;
-
-      // Climbing arc up into the turn and swooping back to cruising level
-      plane.y = plane.baseY - 45 * Math.sin(p * Math.PI);
-      // Slight forward carry during reversal
-      plane.x += Math.cos(p * Math.PI) * plane.speed * 0.35 * dt;
-
-      // Smooth camera swing from Eastbound view (plane.x - 220) to Westbound view (plane.x - 720)
-      const eastCam = plane.x - 220;
-      const westCam = plane.x - 720;
-      cameraXRef.current = eastCam + (westCam - eastCam) * p;
-
-      // Vapor ribbon during turn
-      if (Math.random() < 0.7) {
-        particlesRef.current.push({
-          x: plane.x,
-          y: plane.y + 4,
-          vx: (Math.random() - 0.5) * 10,
-          vy: 10,
-          color: '#ffffff',
-          size: 2.2,
-          maxLife: 0.4,
-          life: 0.4,
-          type: 'smoke',
-          alpha: 0.6,
-        });
-      }
-
-      if (plane.turnProgress >= 1) {
-        plane.isTurning180 = false;
-        plane.direction = -1; // Heading WEST!
-        plane.turnProgress = 0;
-        plane.y = plane.baseY;
-        plane.angle = 0;
-        approachRunRef.current = 2;
-        setStats(prev => ({ ...prev, approachRun: 2 }));
-        addFloatingText("APPROACH RUN 2/2 · SWEEPING WEST", plane.x, plane.y - 25, '#38bdf8');
-        sound.updateEnginePitch(false);
-      }
-    } else if (plane.isLooping) {
-      plane.loopProgress += dt / PLANE_LOOP_DURATION;
-
-      if (plane.loopProgress >= 1) {
-        if (isLoopHeldRef.current) {
-          // Key or Button is STILL actively being held down right now!
-          // Seamlessly roll again!
-          plane.loopProgress = 0;
-          plane.loopCenterX = plane.x;
-          sound.updateEnginePitch(true);
-        } else {
-          // Button/key was released! Return to level cruising immediately!
-          plane.isLooping = false;
-          plane.loopProgress = 0;
-          plane.x = plane.loopCenterX;
-          plane.y = plane.baseY;
-          plane.angle = 0;
-          plane.standingLoopCooldown = 0;
-          setIsLoopingState(false);
-          sound.updateEnginePitch(false);
-        }
-      } else {
-        const phi = plane.loopProgress * Math.PI * 2;
-        const R = plane.loopRadius;
-        const dir = plane.direction;
-
-        // Circular loop: respects current heading direction
-        plane.x = plane.loopCenterX + dir * R * Math.sin(phi);
-        plane.y = (plane.baseY - R) + R * Math.cos(phi);
-
-        // Strict clamp: never touch or exceed the upper sky boundary
-        plane.y = Math.max(50, Math.min(plane.baseY, plane.y));
-
-        // Smooth continuous 360-degree heading angle
-        plane.angle = -phi;
-
-        // Wingtip vapor particles
-        if (Math.random() < 0.6) {
-          particlesRef.current.push({
-            x: plane.x - Math.cos(plane.angle) * (12 * dir),
-            y: plane.y - Math.sin(plane.angle) * 12,
-            vx: -Math.cos(plane.angle) * (8 * dir),
-            vy: -Math.sin(plane.angle) * 8,
-            color: '#ffffff',
-            size: 2.0,
-            maxLife: 0.35,
-            life: 0.35,
-            type: 'smoke',
-            alpha: 0.5,
-          });
-        }
-      }
-      cameraXRef.current = loopCameraAnchorRef.current;
-    } else {
-      // Normal cruising: East (+X) or West (-X)
-      plane.x += plane.direction * plane.speed * dt;
-      plane.y = plane.baseY;
-      plane.angle = 0;
-
-      // Smooth camera framing:
-      // Eastbound: plane framed at 220px from left
-      // Westbound: plane framed at 220px from right (740px from left)
-      const targetCam = plane.direction === 1
-        ? plane.x - 220
-        : plane.x - 720;
-      cameraXRef.current += (targetCam - cameraXRef.current) * Math.min(1, dt * 6);
-    }
-
-    // Engine Battle Damage Smoke Plume (when plane is hit, low hull, or low life)
-    const isPlaneDamaged = plane.hullHealth < 100 || plane.lives <= 1 || plane.invulnerableTime > 0;
-    if (isPlaneDamaged) {
-      const isCritical = plane.hullHealth <= 40 || plane.lives === 1;
-      const isExtreme = plane.hullHealth <= 20 || plane.lives === 1;
-      const smokeChance = isExtreme ? 0.95 : (isCritical ? 0.75 : 0.45);
-
-      if (Math.random() < smokeChance) {
-        const dir = plane.direction;
-        const cosA = Math.cos(plane.angle);
-        const sinA = Math.sin(plane.angle);
-        const exhaustOffsetX = -dir * 18;
-        const exhaustOffsetY = -2;
-        const exX = plane.x + cosA * exhaustOffsetX - sinA * exhaustOffsetY;
-        const exY = plane.y + sinA * exhaustOffsetX + cosA * exhaustOffsetY;
-
-        particlesRef.current.push({
-          x: exX + (Math.random() - 0.5) * 5,
-          y: exY + (Math.random() - 0.5) * 5,
-          vx: -dir * (plane.speed * 0.4 + Math.random() * 25),
-          vy: (Math.random() - 0.5) * 16 - (isCritical ? 14 : 6),
-          color: isExtreme
-            ? (Math.random() > 0.4 ? '#171717' : (Math.random() > 0.4 ? '#262626' : '#ea580c'))
-            : (isCritical
-              ? (Math.random() > 0.5 ? '#292524' : '#44403c')
-              : (Math.random() > 0.5 ? '#78716c' : '#a8a29e')),
-          size: (isCritical ? 3.5 : 2.2) + Math.random() * 2.5,
-          maxLife: isCritical ? 0.75 : 0.5,
-          life: isCritical ? 0.75 : 0.5,
-          type: (isExtreme && Math.random() > 0.6) ? 'spark' : 'smoke',
-          alpha: isCritical ? 0.85 : 0.6,
-        });
-      }
-    }
 
     // Building destruction handler with friendly-fire scoring rules
     const handleBuildingDestruction = (bldg: Building, causedByPlayer: boolean, isFriendlyFire: boolean = false) => {
@@ -803,6 +610,311 @@ export function useSpitfireGame() {
       }
     };
 
+    // Continuous Machine Gun Fire (Hold Button C or [F] to fire stream)
+    if (isGunHeldRef.current && plane.machineGunCooldown <= 0 && !plane.isTurning180 && !plane.isCrashing) {
+      fireMachineGun();
+    }
+
+    // 1. Plane Movement (Obliterated Impact Site, Fatal Crash Dive, 180 Combat Turn, Standing Loop, or Cruising)
+    if (plane.isDestroyed) {
+      // Aircraft was obliterated on impact! Keep emitting crater smoke/debris and DO NOT fly or render in the sky!
+      if (Math.random() < 0.4) {
+        particlesRef.current.push({
+          x: plane.x + (Math.random() - 0.5) * 16,
+          y: plane.y + (Math.random() - 0.5) * 8,
+          vx: (Math.random() - 0.5) * 20,
+          vy: -25 - Math.random() * 25,
+          color: ['#171717', '#292524', '#78716c'][Math.floor(Math.random() * 3)],
+          size: 3 + Math.random() * 3,
+          maxLife: 0.8,
+          life: 0.8,
+          type: 'smoke',
+          alpha: 0.75,
+        });
+      }
+    } else if (plane.isCrashing) {
+      // Allow slight player steering during the crash dive so they can aim onto enemy targets!
+      let steerForward = 0;
+      if (keysRef.current['arrowleft'] || keysRef.current['a']) {
+        steerForward -= 70 * dt * plane.direction;
+      }
+      if (keysRef.current['arrowright'] || keysRef.current['d']) {
+        steerForward += 70 * dt * plane.direction;
+      }
+      let steerVertical = 0;
+      if (keysRef.current['arrowup'] || keysRef.current['w']) {
+        steerVertical -= 50 * dt; // Shallow glide
+      }
+      if (keysRef.current['arrowdown'] || keysRef.current['s'] || keysRef.current[' ']) {
+        steerVertical += 90 * dt; // Steep dive bomb!
+      }
+
+      plane.crashVx = (plane.crashVx ?? plane.direction * 100) + steerForward * plane.direction;
+      plane.crashVy = Math.max(25, (plane.crashVy ?? 35) + (230 + steerVertical) * dt);
+
+      plane.x += plane.crashVx * dt;
+      plane.y += plane.crashVy * dt;
+      plane.angle = Math.atan2(plane.crashVy, plane.crashVx);
+
+      // Camera smoothly follows falling aircraft
+      const targetCam = plane.direction === 1 ? plane.x - 220 : plane.x - 700;
+      cameraXRef.current += (targetCam - cameraXRef.current) * Math.min(1, dt * 7);
+
+      // Heavy trailing fire and smoke plume
+      for (let s = 0; s < 2; s++) {
+        particlesRef.current.push({
+          x: plane.x + (Math.random() - 0.5) * 6,
+          y: plane.y + (Math.random() - 0.5) * 6,
+          vx: -plane.crashVx * 0.35 + (Math.random() - 0.5) * 25,
+          vy: -plane.crashVy * 0.35 + (Math.random() - 0.5) * 25 - 6,
+          color: ['#171717', '#262626', '#ea580c', '#f59e0b', '#78716c'][Math.floor(Math.random() * 5)],
+          size: 3.5 + Math.random() * 4,
+          maxLife: 0.65 + Math.random() * 0.35,
+          life: 0.65 + Math.random() * 0.35,
+          type: Math.random() > 0.5 ? 'fire' : 'smoke',
+          alpha: 0.9,
+        });
+      }
+
+      // Check Building Collision while crashing down
+      let crashResolved = false;
+      for (const bldg of buildingsRef.current) {
+        if (bldg.destroyed) continue;
+        const bldgTop = GROUND_Y - bldg.height;
+        const hitX = plane.x >= bldg.x - 8 && plane.x <= bldg.x + bldg.width + 8;
+        const hitY = plane.y >= bldgTop && plane.y <= GROUND_Y;
+
+        if (hitX && hitY) {
+          plane.isCrashing = false;
+          plane.isDestroyed = true;
+          plane.speed = 0;
+          plane.crashVx = 0;
+          plane.crashVy = 0;
+          crashResolved = true;
+          sound.stopAll();
+          spawnExplosion(plane.x, plane.y, true);
+          sound.playExplosion(true);
+          rendererRef.current?.triggerScreenShake(16, 0.6);
+
+          if (bldg.type === 'ENEMY') {
+            // HEROIC SACRIFICE / KAMIKAZE TARGET HIT!
+            handleBuildingDestruction(bldg, true, false);
+            addFloatingText("HEROIC CRASH IMPACT! +500", plane.x, bldgTop - 25, '#22c55e');
+            setStats(prev => ({ ...prev, score: prev.score + 500 }));
+
+            // Check if all enemy targets destroyed -> MISSION CLEARED!
+            const remaining = buildingsRef.current.filter(b => b.type === 'ENEMY' && !b.destroyed).length;
+            if (remaining === 0) {
+              setTimeout(() => {
+                setStats(prev => ({ ...prev, score: prev.score + BONUS_SECTOR_CLEAR }));
+                sound.playVictoryFanfare();
+                setGameState('SECTOR_CLEAR');
+              }, 700);
+              return;
+            }
+          } else {
+            handleBuildingDestruction(bldg, true, false);
+            addFloatingText("CRASH LANDING COLLATERAL!", plane.x, bldgTop - 25, '#ef4444', true);
+          }
+
+          setTimeout(() => {
+            sound.stopAll();
+            setGameState('GAME_OVER');
+          }, 1100);
+          return;
+        }
+      }
+
+      if (crashResolved) return;
+
+      // Check Ground Collision while crashing down
+      if (plane.y >= GROUND_Y - 4) {
+        plane.isCrashing = false;
+        plane.isDestroyed = true;
+        plane.speed = 0;
+        plane.crashVx = 0;
+        plane.crashVy = 0;
+        plane.y = GROUND_Y;
+        sound.stopAll();
+        spawnExplosion(plane.x, GROUND_Y, true);
+        sound.playExplosion(false);
+        rendererRef.current?.triggerScreenShake(14, 0.5);
+        addFloatingText("AIRCRAFT DESTROYED ON IMPACT", plane.x, GROUND_Y - 25, '#ef4444', true);
+
+        // Ground crash blast catches adjacent enemy buildings!
+        for (const bldg of buildingsRef.current) {
+          if (bldg.destroyed) continue;
+          const distToBldg = Math.abs(plane.x - (bldg.x + bldg.width / 2));
+          if (distToBldg < (bldg.width / 2 + 30)) {
+            if (bldg.type === 'ENEMY') {
+              handleBuildingDestruction(bldg, true, false);
+              addFloatingText("CRASH BLAST DESTROYED BASE! +500", plane.x, GROUND_Y - 35, '#22c55e');
+              setStats(prev => ({ ...prev, score: prev.score + 500 }));
+
+              const remaining = buildingsRef.current.filter(b => b.type === 'ENEMY' && !b.destroyed).length;
+              if (remaining === 0) {
+                setTimeout(() => {
+                  setStats(prev => ({ ...prev, score: prev.score + BONUS_SECTOR_CLEAR }));
+                  sound.playVictoryFanfare();
+                  setGameState('SECTOR_CLEAR');
+                }, 700);
+                return;
+              }
+            }
+            break;
+          }
+        }
+
+        setTimeout(() => {
+          sound.stopAll();
+          setGameState('GAME_OVER');
+        }, 1000);
+        return;
+      }
+    } else if (plane.isTurning180) {
+      plane.turnProgress += dt / plane.turnDuration;
+      const p = plane.turnProgress;
+
+      // Climbing arc up into the turn and swooping back to cruising level
+      plane.y = plane.baseY - 45 * Math.sin(p * Math.PI);
+      // Slight forward carry during reversal
+      plane.x += Math.cos(p * Math.PI) * plane.speed * 0.35 * dt;
+
+      // Smooth camera swing from Eastbound view (plane.x - 220) to Westbound view (plane.x - 720)
+      const eastCam = plane.x - 220;
+      const westCam = plane.x - 720;
+      cameraXRef.current = eastCam + (westCam - eastCam) * p;
+
+      // Vapor ribbon during turn
+      if (Math.random() < 0.7) {
+        particlesRef.current.push({
+          x: plane.x,
+          y: plane.y + 4,
+          vx: (Math.random() - 0.5) * 10,
+          vy: 10,
+          color: '#ffffff',
+          size: 2.2,
+          maxLife: 0.4,
+          life: 0.4,
+          type: 'smoke',
+          alpha: 0.6,
+        });
+      }
+
+      if (plane.turnProgress >= 1) {
+        plane.isTurning180 = false;
+        plane.direction = -1; // Heading WEST!
+        plane.turnProgress = 0;
+        plane.y = plane.baseY;
+        plane.angle = 0;
+        approachRunRef.current = 2;
+        setStats(prev => ({ ...prev, approachRun: 2 }));
+        addFloatingText("APPROACH RUN 2/2 · SWEEPING WEST", plane.x, plane.y - 25, '#38bdf8');
+        sound.updateEnginePitch(false);
+      }
+    } else if (plane.isLooping) {
+      plane.loopProgress += dt / PLANE_LOOP_DURATION;
+
+      if (plane.loopProgress >= 1) {
+        if (isLoopHeldRef.current) {
+          // Key or Button is STILL actively being held down right now!
+          // Seamlessly roll again!
+          plane.loopProgress = 0;
+          plane.loopCenterX = plane.x;
+          sound.updateEnginePitch(true);
+        } else {
+          // Button/key was released! Return to level cruising immediately!
+          plane.isLooping = false;
+          plane.loopProgress = 0;
+          plane.x = plane.loopCenterX;
+          plane.y = plane.baseY;
+          plane.angle = 0;
+          plane.standingLoopCooldown = 0;
+          setIsLoopingState(false);
+          sound.updateEnginePitch(false);
+        }
+      } else {
+        const phi = plane.loopProgress * Math.PI * 2;
+        const R = plane.loopRadius;
+        const dir = plane.direction;
+
+        // Circular loop: respects current heading direction
+        plane.x = plane.loopCenterX + dir * R * Math.sin(phi);
+        plane.y = (plane.baseY - R) + R * Math.cos(phi);
+
+        // Strict clamp: never touch or exceed the upper sky boundary
+        plane.y = Math.max(50, Math.min(plane.baseY, plane.y));
+
+        // Smooth continuous 360-degree heading angle
+        plane.angle = -phi;
+
+        // Wingtip vapor particles
+        if (Math.random() < 0.6) {
+          particlesRef.current.push({
+            x: plane.x - Math.cos(plane.angle) * (12 * dir),
+            y: plane.y - Math.sin(plane.angle) * 12,
+            vx: -Math.cos(plane.angle) * (8 * dir),
+            vy: -Math.sin(plane.angle) * 8,
+            color: '#ffffff',
+            size: 2.0,
+            maxLife: 0.35,
+            life: 0.35,
+            type: 'smoke',
+            alpha: 0.5,
+          });
+        }
+      }
+      cameraXRef.current = loopCameraAnchorRef.current;
+    } else {
+      // Normal cruising: East (+X) or West (-X)
+      plane.x += plane.direction * plane.speed * dt;
+      plane.y = plane.baseY;
+      plane.angle = 0;
+
+      // Smooth camera framing:
+      // Eastbound: plane framed at 220px from left
+      // Westbound: plane framed at 220px from right (740px from left)
+      const targetCam = plane.direction === 1
+        ? plane.x - 220
+        : plane.x - 720;
+      cameraXRef.current += (targetCam - cameraXRef.current) * Math.min(1, dt * 6);
+    }
+
+    // Engine Battle Damage Smoke Plume (when plane is hit, low hull, or low life)
+    const isPlaneDamaged = (plane.hullHealth < 100 || plane.lives <= 1 || plane.invulnerableTime > 0) && !plane.isDestroyed;
+    if (isPlaneDamaged) {
+      const isCritical = plane.hullHealth <= 40 || plane.lives === 1;
+      const isExtreme = plane.hullHealth <= 20 || plane.lives === 1;
+      const smokeChance = isExtreme ? 0.95 : (isCritical ? 0.75 : 0.45);
+
+      if (Math.random() < smokeChance) {
+        const dir = plane.direction;
+        const cosA = Math.cos(plane.angle);
+        const sinA = Math.sin(plane.angle);
+        const exhaustOffsetX = -dir * 18;
+        const exhaustOffsetY = -2;
+        const exX = plane.x + cosA * exhaustOffsetX - sinA * exhaustOffsetY;
+        const exY = plane.y + sinA * exhaustOffsetX + cosA * exhaustOffsetY;
+
+        particlesRef.current.push({
+          x: exX + (Math.random() - 0.5) * 5,
+          y: exY + (Math.random() - 0.5) * 5,
+          vx: -dir * (plane.speed * 0.4 + Math.random() * 25),
+          vy: (Math.random() - 0.5) * 16 - (isCritical ? 14 : 6),
+          color: isExtreme
+            ? (Math.random() > 0.4 ? '#171717' : (Math.random() > 0.4 ? '#262626' : '#ea580c'))
+            : (isCritical
+              ? (Math.random() > 0.5 ? '#292524' : '#44403c')
+              : (Math.random() > 0.5 ? '#78716c' : '#a8a29e')),
+          size: (isCritical ? 3.5 : 2.2) + Math.random() * 2.5,
+          maxLife: isCritical ? 0.75 : 0.5,
+          life: isCritical ? 0.75 : 0.5,
+          type: (isExtreme && Math.random() > 0.6) ? 'spark' : 'smoke',
+          alpha: isCritical ? 0.85 : 0.6,
+        });
+      }
+    }
+
     // 2. Bombs Physics & Exaggerated Arc
     for (const b of bombsRef.current) {
       if (!b.alive) continue;
@@ -872,12 +984,15 @@ export function useSpitfireGame() {
     for (const bldg of buildingsRef.current) {
       if (bldg.type !== 'ENEMY' || bldg.destroyed) continue;
 
-      // Active swiveling radar dish points directly at the Spitfire in real-time
-      if (bldg.isRadarUnit) {
+      // Active swiveling radar dish points directly at the Spitfire in real-time (unless radar disabled)
+      if (bldg.isRadarUnit && !bldg.radarDisabled) {
         const dishX = bldg.x + bldg.width / 2;
         const dishY = GROUND_Y - bldg.height - 8;
         bldg.radarTrackAngle = Math.atan2(plane.y - dishY, plane.x - dishX);
       }
+
+      // If missile pod on this building has been disabled by gunfire, it cannot launch!
+      if (bldg.missilePodDisabled) continue;
 
       // Distance to plane
       const distToPlane = Math.abs(plane.x - (bldg.x + bldg.width / 2));
@@ -1138,7 +1253,7 @@ export function useSpitfireGame() {
       }
     }
 
-    // 5. Enemy Anti-Aircraft (AA) Gunfire Simulation
+    // 5. Enemy Anti-Aircraft (AA) Gunfire Simulation (Flak Barrage)
     for (const bldg of buildingsRef.current) {
       if (bldg.type !== 'ENEMY' || bldg.destroyed) continue;
 
@@ -1147,10 +1262,10 @@ export function useSpitfireGame() {
       if (distToPlane < AA_GUN_RANGE && !bldg.isJammed) {
         bldg.aaGunCooldown = (bldg.aaGunCooldown ?? 1.5) - dt;
         if (bldg.aaGunCooldown <= 0) {
-          // Trigger a 3-round rapid tracer burst!
-          bldg.aaBurstCount = 3;
+          // Trigger energetic 5-round rapid tracer burst!
+          bldg.aaBurstCount = 5;
           bldg.aaBurstTimer = 0.02;
-          bldg.aaGunCooldown = 2.2 / currentSectorConfig.missileFireRateFactor + Math.random() * 1.6;
+          bldg.aaGunCooldown = 1.2 / currentSectorConfig.missileFireRateFactor + Math.random() * 0.9;
         }
       }
 
@@ -1159,7 +1274,7 @@ export function useSpitfireGame() {
         bldg.aaBurstTimer = (bldg.aaBurstTimer ?? 0) - dt;
         if (bldg.aaBurstTimer <= 0) {
           bldg.aaBurstCount = (bldg.aaBurstCount ?? 0) - 1;
-          bldg.aaBurstTimer = 0.1; // 100ms interval between rounds in burst
+          bldg.aaBurstTimer = 0.08; // High cadence between rounds in burst
 
           const gunX = bldg.x + bldg.width / 2 + (Math.random() - 0.5) * 8;
           const gunY = GROUND_Y - bldg.height - 4;
@@ -1176,10 +1291,24 @@ export function useSpitfireGame() {
             vx: Math.cos(angle) * ENEMY_BULLET_SPEED,
             vy: Math.sin(angle) * ENEMY_BULLET_SPEED,
             isPlayer: false,
-            damage: ENEMY_BULLET_DAMAGE, // Smaller damage: 10 HP!
+            damage: ENEMY_BULLET_DAMAGE,
             alive: true,
             life: 2.2,
             color: '#ef4444',
+          });
+
+          // AA Muzzle flash spark
+          particlesRef.current.push({
+            x: gunX,
+            y: gunY,
+            vx: (Math.random() - 0.5) * 30,
+            vy: -25 - Math.random() * 25,
+            color: '#f97316',
+            size: 2,
+            maxLife: 0.12,
+            life: 0.12,
+            type: 'spark',
+            alpha: 0.9,
           });
 
           sound.playAABullet();
@@ -1274,24 +1403,135 @@ export function useSpitfireGame() {
           }
         }
 
-        // 2. Strafe enemy buildings/radar
+        // 2. Strafe enemy installations: Disables Radars & Missile Pods, but CANNOT destroy buildings or AA guns
         for (const bldg of buildingsRef.current) {
           if (bldg.destroyed) continue;
-          if (b.x >= bldg.x && b.x <= bldg.x + bldg.width && b.y >= GROUND_Y - bldg.height && b.y <= GROUND_Y) {
+          const bldgTop = GROUND_Y - bldg.height;
+          // Rooftop equipment bounds & facade bounds
+          const touchesX = b.x >= bldg.x - 4 && b.x <= bldg.x + bldg.width + 4;
+          const touchesY = b.y >= bldgTop - 18 && b.y <= GROUND_Y;
+
+          if (touchesX && touchesY) {
             b.alive = false;
-            for (let s = 0; s < 3; s++) {
-              particlesRef.current.push({
-                x: b.x,
-                y: b.y,
-                vx: (Math.random() - 0.5) * 50,
-                vy: -Math.random() * 50,
-                color: '#facc15',
-                size: 1.5,
-                maxLife: 0.2,
-                life: 0.2,
-                type: 'spark',
-                alpha: 0.7,
-              });
+
+            if (bldg.type === 'ENEMY') {
+              const isRooftopHit = b.y <= bldgTop + 14;
+              const isRadar = bldg.isRadarUnit || bldg.themeStyle.roofType === 'radar';
+
+              // A. DISABLE RADAR (Blinds radar dishes & early-warning networks)
+              if (isRadar && !bldg.radarDisabled && (isRooftopHit || bldg.isRadarUnit)) {
+                bldg.radarDisabled = true;
+                bldg.isJammed = true;
+                sound.playRadarZap();
+
+                // Electric arc spark burst from disabled radar dish
+                for (let s = 0; s < 10; s++) {
+                  particlesRef.current.push({
+                    x: b.x,
+                    y: b.y,
+                    vx: (Math.random() - 0.5) * 80,
+                    vy: -15 - Math.random() * 55,
+                    color: Math.random() > 0.4 ? '#38bdf8' : '#67e8f9',
+                    size: 2.2,
+                    maxLife: 0.35,
+                    life: 0.35,
+                    type: 'spark',
+                    alpha: 0.95,
+                  });
+                }
+
+                if (bldg.isRadarUnit) {
+                  addFloatingText("RADAR HQ DISABLED! GUIDANCE BLINDED! +200", bldg.x + bldg.width / 2, bldgTop - 25, '#38bdf8');
+                  setStats(prev => ({ ...prev, score: prev.score + 200 }));
+
+                  // Scramble connected SAM launchers across sector
+                  for (const targetBldg of buildingsRef.current) {
+                    if (targetBldg.id === bldg.id || targetBldg.type !== 'ENEMY' || targetBldg.destroyed) continue;
+                    if (targetBldg.linkedRadarId === bldg.id || Math.abs(targetBldg.x - bldg.x) < 750) {
+                      targetBldg.isJammed = true;
+                      targetBldg.missileCooldown = 2.0 + Math.random() * 2.0;
+                    }
+                  }
+
+                  // In-flight missiles immediately lose tracking lock and corkscrew haywire
+                  for (const m of missilesRef.current) {
+                    if (m.sourceBuildingId === bldg.id || buildingsRef.current.some(b => b.id === m.sourceBuildingId && b.isJammed)) {
+                      m.isHaywire = true;
+                      m.overshot = true;
+                    }
+                  }
+                } else {
+                  addFloatingText("RADAR DISH DISABLED! +150", bldg.x + bldg.width / 2, bldgTop - 20, '#38bdf8');
+                  setStats(prev => ({ ...prev, score: prev.score + 150 }));
+                }
+                break;
+              }
+
+              // B. DISABLE MISSILE POD (Knocks out rooftop surface-to-air missile launch silos)
+              if (!bldg.missilePodDisabled && isRooftopHit && !bldg.isRadarUnit) {
+                bldg.missilePodDisabled = true;
+                bldg.missileCooldown = 999999; // Pod permanently disabled for this sortie
+                sound.playPodDisabled();
+
+                // Fiery blowout sparks & smoke on knocked out missile silo
+                for (let s = 0; s < 8; s++) {
+                  particlesRef.current.push({
+                    x: b.x,
+                    y: b.y,
+                    vx: (Math.random() - 0.5) * 60,
+                    vy: -20 - Math.random() * 40,
+                    color: Math.random() > 0.4 ? '#f97316' : '#ef4444',
+                    size: 2.5,
+                    maxLife: 0.3,
+                    life: 0.3,
+                    type: 'spark',
+                    alpha: 0.9,
+                  });
+                }
+
+                addFloatingText("MISSILE POD DISABLED! +200", bldg.x + bldg.width / 2, bldgTop - 20, '#f59e0b');
+                setStats(prev => ({ ...prev, score: prev.score + 200 }));
+                break;
+              }
+
+              // C. BUILDING WALLS & AA GUNS (HEAVILY ARMORED - CANNOT BE DESTROYED BY MACHINE GUNS!)
+              // Bullets ping and ricochet off reinforced concrete and armored gun turrets
+              sound.playBulletHit();
+              for (let s = 0; s < 4; s++) {
+                particlesRef.current.push({
+                  x: b.x,
+                  y: b.y,
+                  vx: -Math.sign(b.vx || 1) * (30 + Math.random() * 50),
+                  vy: -Math.random() * 40,
+                  color: '#facc15',
+                  size: 1.8,
+                  maxLife: 0.2,
+                  life: 0.2,
+                  type: 'spark',
+                  alpha: 0.85,
+                });
+              }
+
+              // Tactical feedback reminding player to drop bombs to demolish buildings
+              if (Math.random() < 0.12) {
+                addFloatingText("ARMORED BUNKER · DROP BOMBS!", bldg.x + bldg.width / 2, bldgTop - 15, '#94a3b8');
+              }
+            } else {
+              // Civilian masonry absorbs light rifle fire with harmless surface sparks
+              for (let s = 0; s < 2; s++) {
+                particlesRef.current.push({
+                  x: b.x,
+                  y: b.y,
+                  vx: (Math.random() - 0.5) * 30,
+                  vy: -Math.random() * 30,
+                  color: '#cbd5e1',
+                  size: 1.5,
+                  maxLife: 0.15,
+                  life: 0.15,
+                  type: 'debris',
+                  alpha: 0.5,
+                });
+              }
             }
             break;
           }
@@ -1299,13 +1539,52 @@ export function useSpitfireGame() {
       }
     }
 
-    // 7. Particles Update
+    // 7. Continuous Billowing Smoke & Fire Plumes from Bombed Buildings
+    for (const bldg of buildingsRef.current) {
+      if (!bldg.destroyed) continue;
+
+      const screenX = bldg.x - cameraXRef.current;
+      // Only emit smoke for ruins visible on or near the screen
+      if (screenX + bldg.width < -120 || screenX > CANVAS_VIRTUAL_WIDTH + 120) continue;
+
+      const ruinHeight = Math.max(34, bldg.height * 0.38);
+      const ruinTopY = GROUND_Y - ruinHeight;
+
+      // Billow rate: active continuous puffs ascending into the atmosphere
+      if (Math.random() < 0.7) {
+        const emitX = bldg.x + 6 + Math.random() * (bldg.width - 12);
+        const emitY = ruinTopY + Math.random() * 8;
+        const isEmber = Math.random() < 0.22;
+        const windDrift = (Math.random() - 0.5) * 16 + 5; // gentle ambient wind
+
+        particlesRef.current.push({
+          x: emitX,
+          y: emitY,
+          vx: windDrift,
+          vy: -35 - Math.random() * 45, // rises high into the sky
+          color: isEmber
+            ? (Math.random() > 0.5 ? '#f97316' : '#facc15')
+            : (['#141210', '#1c1917', '#292524', '#44403c', '#57534e', '#78716c'][Math.floor(Math.random() * 6)]),
+          size: (isEmber ? 1.8 : 3.8) + Math.random() * 3.5,
+          maxLife: 1.5 + Math.random() * 0.9,
+          life: 1.5 + Math.random() * 0.9,
+          type: isEmber ? 'spark' : 'smoke',
+          alpha: isEmber ? 0.95 : 0.78,
+        });
+      }
+    }
+
+    // 8. Particles Update & Atmospheric Physics
     for (const p of particlesRef.current) {
       p.life -= dt;
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       if (p.type === 'fire' || p.type === 'debris') {
-        p.vy += 80 * dt; // slight gravity
+        p.vy += 85 * dt; // gravity
+      } else if (p.type === 'smoke') {
+        // Smoke gently slows down horizontally and drifts upward buoyantly
+        p.vx *= (1 - 0.35 * dt);
+        p.vy -= 14 * dt;
       }
     }
     particlesRef.current = particlesRef.current.filter(p => p.life > 0);
@@ -1449,9 +1728,12 @@ export function useSpitfireGame() {
       // Ignore if typing in an input
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) return;
 
+      keysRef.current[e.key.toLowerCase()] = true;
+      keysRef.current[e.code.toLowerCase()] = true;
+
       if (e.code === 'KeyF' || e.code === 'KeyC' || e.code === 'KeyJ' || e.code === 'KeyX' || e.code === 'ControlLeft' || e.code === 'ControlRight') {
         e.preventDefault();
-        fireMachineGun();
+        startMachineGun();
       } else if (e.code === 'Space' || e.key === ' ' || e.code === 'KeyZ' || e.code === 'KeyA') {
         e.preventDefault();
         dropBomb();
@@ -1477,6 +1759,12 @@ export function useSpitfireGame() {
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
+      keysRef.current[e.key.toLowerCase()] = false;
+      keysRef.current[e.code.toLowerCase()] = false;
+
+      if (e.code === 'KeyF' || e.code === 'KeyC' || e.code === 'KeyJ' || e.code === 'KeyX' || e.code === 'ControlLeft' || e.code === 'ControlRight') {
+        stopMachineGun();
+      }
       if (e.code === 'KeyW' || e.code === 'ArrowUp' || e.code === 'KeyS' || e.code === 'KeyL') {
         stopStandingLoop();
       }
@@ -1488,7 +1776,23 @@ export function useSpitfireGame() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [dropBomb, startStandingLoop, stopStandingLoop, fireMachineGun, gameState]);
+  }, [dropBomb, startStandingLoop, stopStandingLoop, startMachineGun, stopMachineGun, gameState]);
+
+  // Synchronize audio with game state: Silence engine immediately when not PLAYING (e.g. GAME_OVER, MISSION_FAILED)
+  useEffect(() => {
+    if (gameState !== 'PLAYING') {
+      sound.stopAll();
+      isGunHeldRef.current = false;
+      isLoopHeldRef.current = false;
+    }
+  }, [gameState]);
+
+  // Clean up all audio nodes on component unmount
+  useEffect(() => {
+    return () => {
+      sound.stopAll();
+    };
+  }, []);
 
   // Game Lifecycle Control Methods
   const startGame = useCallback(() => {
@@ -1546,6 +1850,8 @@ export function useSpitfireGame() {
     currentSectorIndex,
     dropBomb,
     fireMachineGun,
+    startMachineGun,
+    stopMachineGun,
     performStandingLoop,
     startStandingLoop,
     stopStandingLoop,

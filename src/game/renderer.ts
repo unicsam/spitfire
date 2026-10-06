@@ -104,22 +104,26 @@ export class GameRenderer {
 
       if (b.isPlayer) {
         // Player .303 Browning High-Speed Tracer Stream
+        ctx.fillStyle = 'rgba(251, 191, 36, 0.4)';
+        ctx.fillRect(-14, -2, 24, 4);
         ctx.fillStyle = '#fef08a';
-        ctx.fillRect(-6, -1, 12, 2);
-        ctx.fillStyle = 'rgba(250, 204, 21, 0.45)';
-        ctx.fillRect(-10, -2, 16, 4);
+        ctx.fillRect(-10, -1, 18, 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(4, -0.75, 5, 1.5);
       } else {
-        // Enemy Anti-Aircraft Flak Tracer Round (fiery red/orange with hot core)
+        // Enemy Anti-Aircraft Flak Tracer Round (fiery red/orange with glowing core)
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.45)';
+        ctx.fillRect(-12, -2.5, 16, 5);
         ctx.fillStyle = '#ef4444';
         ctx.beginPath();
-        ctx.arc(0, 0, 2.5, 0, Math.PI * 2);
+        ctx.arc(0, 0, 3, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = '#fef08a';
         ctx.beginPath();
-        ctx.arc(1, 0, 1.2, 0, Math.PI * 2);
+        ctx.arc(1.5, 0, 1.5, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = 'rgba(249, 115, 22, 0.65)';
-        ctx.fillRect(-8, -1.5, 8, 3);
+        ctx.fillStyle = '#fb923c';
+        ctx.fillRect(-10, -1.5, 10, 3);
       }
 
       ctx.restore();
@@ -321,7 +325,7 @@ export class GameRenderer {
 
       if (b.destroyed) {
         // Destroyed ruin
-        this.drawDestroyedBuilding(b, screenX, topY);
+        this.drawDestroyedBuilding(b, screenX, topY, gameTime);
         continue;
       }
 
@@ -401,58 +405,61 @@ export class GameRenderer {
     ctx.save();
     // Drop shadow
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.fillRect(screenX - 2, GROUND_Y - 5, w + 4, 5);
+    ctx.fillRect(screenX - 2, GROUND_Y - 4, w + 4, 4);
 
-    // Tracked Vehicle Lower Treads
-    ctx.fillStyle = '#1c1917';
-    ctx.beginPath();
-    ctx.roundRect(screenX + 2, GROUND_Y - 12, w - 4, 12, 3);
-    ctx.fill();
-
-    // Road wheels inside tracks
-    ctx.fillStyle = '#44403c';
-    for (let wx = screenX + 9; wx < screenX + w - 7; wx += 10) {
-      ctx.beginPath();
-      ctx.arc(wx, GROUND_Y - 6, 3.5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#94a3b8';
-      ctx.beginPath();
-      ctx.arc(wx, GROUND_Y - 6, 1.2, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#44403c';
+    // 1. Reinforced Concrete Bunker Plinth Foundation (Solid stone/concrete, NO WHEELS)
+    ctx.fillStyle = '#334155';
+    ctx.fillRect(screenX, GROUND_Y - 14, w, 14);
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(screenX + 2, GROUND_Y - 12, w - 4, 10);
+    // Foundation expansion joints & blast anchors
+    ctx.fillStyle = '#0f172a';
+    for (let jx = screenX + 12; jx < screenX + w - 8; jx += 16) {
+      ctx.fillRect(jx, GROUND_Y - 14, 2, 14);
     }
 
-    // Armored Command Cabin
+    // 2. Concrete Blast-Wall Bunker Structure
     ctx.fillStyle = '#1e293b';
     ctx.strokeStyle = '#0f172a';
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.roundRect(screenX + 5, GROUND_Y - 27, w - 10, 16, 3);
+    ctx.rect(screenX + 4, GROUND_Y - 34, w - 8, 20);
     ctx.fill();
     ctx.stroke();
 
-    // Hazard Stripes on Chassis
+    // Heavy Armored Blast Door at center
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(cx - 7, GROUND_Y - 26, 14, 12);
+    ctx.fillStyle = '#475569';
+    ctx.fillRect(cx - 5, GROUND_Y - 24, 10, 10);
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(cx - 1, GROUND_Y - 20, 2, 4);
+
+    // Hazard Stripes on Bunker Upper Rim
     ctx.fillStyle = '#f59e0b';
-    ctx.fillRect(screenX + 7, GROUND_Y - 25, 7, 12);
+    ctx.fillRect(screenX + 4, GROUND_Y - 34, w - 8, 4);
     ctx.fillStyle = '#0f172a';
-    ctx.fillRect(screenX + 9, GROUND_Y - 25, 3, 12);
+    for (let hx = screenX + 6; hx < screenX + w - 6; hx += 8) {
+      ctx.fillRect(hx, GROUND_Y - 34, 3, 4);
+    }
 
-    // Dual SAM missile rail on side
+    // Dual SAM missile launch tubes mounted on bunker roof
     ctx.fillStyle = '#334155';
-    ctx.fillRect(screenX + w - 18, GROUND_Y - 32, 12, 6);
+    ctx.fillRect(screenX + w - 18, GROUND_Y - 42, 14, 8);
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(screenX + w - 19, GROUND_Y - 33, 11, 2.5);
-    ctx.fillRect(screenX + w - 19, GROUND_Y - 29, 11, 2.5);
+    ctx.fillRect(screenX + w - 19, GROUND_Y - 41, 12, 2.5);
+    ctx.fillRect(screenX + w - 19, GROUND_Y - 37, 12, 2.5);
     ctx.fillStyle = '#ef4444';
-    ctx.fillRect(screenX + w - 21, GROUND_Y - 33, 3, 2.5);
-    ctx.fillRect(screenX + w - 21, GROUND_Y - 29, 3, 2.5);
+    ctx.fillRect(screenX + w - 21, GROUND_Y - 41, 3, 2.5);
+    ctx.fillRect(screenX + w - 21, GROUND_Y - 37, 3, 2.5);
 
-    // Elevated Turret Swivel Pedestal
+    // Elevated Concrete Pedestal Mounting for Radar Gantry
     ctx.fillStyle = '#0f172a';
-    ctx.fillRect(cx - 5, GROUND_Y - 36, 10, 10);
+    ctx.fillRect(cx - 6, GROUND_Y - 44, 12, 10);
 
     // Active Swiveling Radar Dish (rotates to track the Spitfire!)
-    const trackAngle = b.radarTrackAngle ?? -Math.PI / 2;
+    const isRadarActive = !b.radarDisabled && !b.isJammed;
+    const trackAngle = isRadarActive ? (b.radarTrackAngle ?? -Math.PI / 2) : -Math.PI * 0.15;
     const dishY = GROUND_Y - 36;
 
     ctx.save();
@@ -460,40 +467,53 @@ export class GameRenderer {
     ctx.rotate(trackAngle);
 
     // Tactical Radar Dish Frame
-    ctx.strokeStyle = '#38bdf8';
+    ctx.strokeStyle = isRadarActive ? '#38bdf8' : '#64748b';
     ctx.lineWidth = 2.5;
     ctx.beginPath();
     ctx.arc(0, 0, 13, -Math.PI * 0.45, Math.PI * 0.45);
     ctx.stroke();
 
     // Antenna feed horn
-    ctx.strokeStyle = '#ffffff';
+    ctx.strokeStyle = isRadarActive ? '#ffffff' : '#94a3b8';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(0, 0);
     ctx.lineTo(9, 0);
     ctx.stroke();
 
-    // Radar Active Emitter Blinking Beacon
-    const pingPulse = Math.sin(gameTime * 12) > 0;
-    ctx.fillStyle = pingPulse ? '#38bdf8' : '#0284c7';
-    ctx.beginPath();
-    ctx.arc(9, 0, 2.5, 0, Math.PI * 2);
-    ctx.fill();
+    // Radar Active Emitter Blinking Beacon (or dark burnt out)
+    if (isRadarActive) {
+      const pingPulse = Math.sin(gameTime * 12) > 0;
+      ctx.fillStyle = pingPulse ? '#38bdf8' : '#0284c7';
+      ctx.beginPath();
+      ctx.arc(9, 0, 2.5, 0, Math.PI * 2);
+      ctx.fill();
 
-    // Sweeping radar scan cone towards Spitfire
-    const scanAlpha = 0.12 + Math.sin(gameTime * 8) * 0.08;
-    ctx.fillStyle = `rgba(56, 189, 248, ${scanAlpha})`;
-    ctx.beginPath();
-    ctx.moveTo(9, 0);
-    ctx.arc(9, 0, 150, -0.2, 0.2);
-    ctx.closePath();
-    ctx.fill();
+      // Sweeping radar scan cone towards Spitfire
+      const scanAlpha = 0.12 + Math.sin(gameTime * 8) * 0.08;
+      ctx.fillStyle = `rgba(56, 189, 248, ${scanAlpha})`;
+      ctx.beginPath();
+      ctx.moveTo(9, 0);
+      ctx.arc(9, 0, 150, -0.2, 0.2);
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      ctx.fillStyle = '#1e293b';
+      ctx.beginPath();
+      ctx.arc(9, 0, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Malfunction spark
+      if (Math.sin(gameTime * 18) > 0.4) {
+        ctx.fillStyle = '#38bdf8';
+        ctx.fillRect(4, -3, 3, 3);
+      }
+    }
 
     ctx.restore();
 
     // HUD Target Callout with Cyan Radar HQ identifier
-    this.drawTargetMarker(cx, topY - 26, gameTime, true, false);
+    this.drawTargetMarker(cx, topY - 26, gameTime, true, b.isJammed, b.radarDisabled, b.missilePodDisabled);
 
     ctx.restore();
   }
@@ -564,13 +584,13 @@ export class GameRenderer {
       }
     }
 
-    // Roof Structure: Radar or Silo or Jammed
-    if (b.isJammed) {
+    // Roof Structure: Radar or Silo or Jammed/Disabled
+    if (b.radarDisabled || b.isJammed) {
       const siloX = screenX + b.width / 2;
-      ctx.fillStyle = '#292524';
+      ctx.fillStyle = '#1c1917';
       ctx.fillRect(siloX - 9, topY - 10, 18, 10);
       // Sparking electrical malfunction
-      if (Math.sin(gameTime * 20) > 0.3) {
+      if (Math.sin(gameTime * 20) > 0.2) {
         ctx.fillStyle = '#38bdf8';
         ctx.beginPath();
         ctx.arc(siloX + (Math.sin(gameTime * 15) * 6), topY - 12, 2.5, 0, Math.PI * 2);
@@ -597,35 +617,67 @@ export class GameRenderer {
       ctx.stroke();
       ctx.restore();
     } else {
-      // Missile Launch Silo Tube
+      // Missile Launch Silo Tube (Active or Disabled by Gunfire)
       const siloX = screenX + b.width / 2;
-      ctx.fillStyle = '#44403c';
-      ctx.fillRect(siloX - 10, topY - 14, 20, 14);
-      ctx.fillStyle = '#1c1917';
-      ctx.beginPath();
-      ctx.ellipse(siloX, topY - 14, 10, 4, 0, 0, Math.PI * 2);
-      ctx.fill();
+      if (b.missilePodDisabled) {
+        // Disabled & Damaged Silo Tube: blackened metal, distorted rim, smoke wisp
+        ctx.fillStyle = '#1c1917';
+        ctx.fillRect(siloX - 9, topY - 10, 18, 10);
+        ctx.fillStyle = '#292524';
+        ctx.beginPath();
+        ctx.ellipse(siloX, topY - 10, 9, 3, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Burnt out beacon (dark stone grey)
+        ctx.fillStyle = '#262626';
+        ctx.beginPath();
+        ctx.arc(siloX + 11, topY - 5, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+        // Thin smoke wisp from scorched tube
+        if (Math.sin(gameTime * 7) > 0) {
+          ctx.fillStyle = 'rgba(120, 113, 108, 0.55)';
+          ctx.beginPath();
+          ctx.arc(siloX + Math.sin(gameTime * 4) * 3, topY - 15 - (gameTime % 2) * 5, 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else {
+        // Active Missile Launch Silo Tube
+        ctx.fillStyle = '#44403c';
+        ctx.fillRect(siloX - 10, topY - 14, 20, 14);
+        ctx.fillStyle = '#1c1917';
+        ctx.beginPath();
+        ctx.ellipse(siloX, topY - 14, 10, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
 
-      // Launch warning beacon blinking
-      const blink = Math.sin(gameTime * 8) > 0;
-      ctx.fillStyle = blink ? '#ef4444' : '#7f1d1d';
-      ctx.beginPath();
-      ctx.arc(siloX + 11, topY - 6, 3, 0, Math.PI * 2);
-      ctx.fill();
+        // Launch warning beacon blinking
+        const blink = Math.sin(gameTime * 8) > 0;
+        ctx.fillStyle = blink ? '#ef4444' : '#7f1d1d';
+        ctx.beginPath();
+        ctx.arc(siloX + 11, topY - 6, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
 
     // TARGET HUD CALLOUT (Pulsing tactical chevron & label)
-    this.drawTargetMarker(screenX + b.width / 2, topY - 26, gameTime, false, b.isJammed);
+    this.drawTargetMarker(screenX + b.width / 2, topY - 26, gameTime, false, b.isJammed, b.radarDisabled, b.missilePodDisabled);
   }
 
-  private drawTargetMarker(centerX: number, topY: number, gameTime: number, isRadar: boolean = false, isJammed: boolean = false) {
+  private drawTargetMarker(
+    centerX: number,
+    topY: number,
+    gameTime: number,
+    isRadar: boolean = false,
+    isJammed: boolean = false,
+    radarDisabled: boolean = false,
+    missilePodDisabled: boolean = false
+  ) {
     const ctx = this.ctx;
     const pulse = Math.sin(gameTime * 6) * 2.5;
     const y = topY + pulse;
 
     ctx.save();
     // Badge color
-    ctx.fillStyle = isJammed ? '#c2410c' : isRadar ? '#0284c7' : '#dc2626';
+    const isOffline = radarDisabled || missilePodDisabled;
+    ctx.fillStyle = isOffline ? '#78350f' : isJammed ? '#c2410c' : isRadar ? '#0284c7' : '#dc2626';
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 1.2;
 
@@ -646,7 +698,7 @@ export class GameRenderer {
     ctx.fill();
 
     // Downward target arrow pointing to the roof
-    ctx.fillStyle = isJammed ? '#f97316' : isRadar ? '#38bdf8' : '#ef4444';
+    ctx.fillStyle = isOffline ? '#f59e0b' : isJammed ? '#f97316' : isRadar ? '#38bdf8' : '#ef4444';
     ctx.beginPath();
     ctx.moveTo(centerX - 4, y + 8);
     ctx.lineTo(centerX + 4, y + 8);
@@ -654,11 +706,20 @@ export class GameRenderer {
     ctx.closePath();
     ctx.fill();
 
-    // Text: "RADAR HQ", "RADAR BLIND", or "TARGET"
+    // Text: Status label
     ctx.font = '700 8.5px "Cabinet Grotesk", sans-serif';
     ctx.textAlign = 'center';
     ctx.fillStyle = '#ffffff';
-    const label = isJammed ? "RADAR BLIND" : isRadar ? "RADAR HQ" : "TARGET";
+    let label = "TARGET · DROP BOMB";
+    if (radarDisabled) {
+      label = "RADAR OFFLINE · BOMB TO WIN";
+    } else if (missilePodDisabled) {
+      label = "POD OFFLINE · BOMB TO WIN";
+    } else if (isJammed) {
+      label = "RADAR BLIND";
+    } else if (isRadar) {
+      label = "RADAR HQ";
+    }
     ctx.fillText(label, centerX, y - 9);
 
     ctx.restore();
@@ -745,43 +806,142 @@ export class GameRenderer {
     ctx.fillText("CIVILIAN", screenX + b.width / 2, GROUND_Y - 4);
   }
 
-  private drawDestroyedBuilding(b: Building, screenX: number, topY: number) {
+  private drawDestroyedBuilding(b: Building, screenX: number, topY: number, gameTime: number) {
     const ctx = this.ctx;
-    const ruinHeight = Math.max(30, b.height * 0.35);
+    const ruinHeight = Math.max(34, b.height * 0.38);
     const ruinY = GROUND_Y - ruinHeight;
 
-    // Blackened rubble
-    ctx.fillStyle = '#1c1917';
+    // 1. Smoldering Ambient Fire Glow Gradient over the ruin
+    const fireGlow = ctx.createRadialGradient(
+      screenX + b.width / 2, ruinY + 10, 4,
+      screenX + b.width / 2, ruinY + 10, b.width * 0.85
+    );
+    fireGlow.addColorStop(0, 'rgba(234, 88, 12, 0.45)');
+    fireGlow.addColorStop(0.55, 'rgba(180, 83, 9, 0.16)');
+    fireGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = fireGlow;
+    ctx.fillRect(screenX - 25, ruinY - 35, b.width + 50, ruinHeight + 40);
+
+    // 2. Blackened & Scorched Jagged Masonry Wall Ruin
+    ctx.fillStyle = '#171513';
     ctx.beginPath();
-    ctx.moveTo(screenX, GROUND_Y);
-    ctx.lineTo(screenX, ruinY + 8);
-    ctx.lineTo(screenX + b.width * 0.3, ruinY);
-    ctx.lineTo(screenX + b.width * 0.6, ruinY + 12);
-    ctx.lineTo(screenX + b.width, ruinY + 4);
-    ctx.lineTo(screenX + b.width, GROUND_Y);
+    ctx.moveTo(screenX - 2, GROUND_Y);
+    ctx.lineTo(screenX, ruinY + 14);
+    ctx.lineTo(screenX + b.width * 0.16, ruinY + 6);
+    ctx.lineTo(screenX + b.width * 0.28, ruinY + 18);
+    ctx.lineTo(screenX + b.width * 0.46, ruinY + 2); // broken corner pinnacle
+    ctx.lineTo(screenX + b.width * 0.62, ruinY + 16);
+    ctx.lineTo(screenX + b.width * 0.78, ruinY + 5);
+    ctx.lineTo(screenX + b.width + 2, ruinY + 18);
+    ctx.lineTo(screenX + b.width + 4, GROUND_Y);
     ctx.closePath();
     ctx.fill();
 
-    // Red-hot burning embers inside rubble
-    ctx.fillStyle = '#ea580c';
-    ctx.fillRect(screenX + 8, GROUND_Y - 14, b.width - 16, 6);
+    // Heavy charred outline with fractured cracks
+    ctx.strokeStyle = '#0c0a09';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
 
-    // Rubble debris mounds
-    ctx.fillStyle = '#292524';
+    // 3. Exposed Twisted Metal I-Beams & Rebar protruding from wreckage
+    ctx.strokeStyle = '#44403c';
+    ctx.lineWidth = 2.5;
     ctx.beginPath();
-    ctx.arc(screenX + 6, GROUND_Y - 4, 10, 0, Math.PI * 2);
-    ctx.arc(screenX + b.width - 6, GROUND_Y - 4, 8, 0, Math.PI * 2);
+    ctx.moveTo(screenX + b.width * 0.3, ruinY + 15);
+    ctx.lineTo(screenX + b.width * 0.25, ruinY - 10);
+    ctx.lineTo(screenX + b.width * 0.2, ruinY - 14);
+    ctx.moveTo(screenX + b.width * 0.7, ruinY + 12);
+    ctx.lineTo(screenX + b.width * 0.75, ruinY - 8);
+    ctx.stroke();
+
+    // 4. Exposed Charred Brick Layers & Soot Stains
+    ctx.fillStyle = '#78350f';
+    for (let by = ruinY + 16; by < GROUND_Y - 10; by += 8) {
+      ctx.fillRect(screenX + 4, by, 8, 4);
+      ctx.fillRect(screenX + b.width - 12, by + 3, 7, 4);
+    }
+
+    // 5. Blown-out charred window frames with red glowing interior
+    const winW = 7;
+    const winH = 9;
+    for (let wy = ruinY + 18; wy < GROUND_Y - 16; wy += 18) {
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(screenX + 12, wy, winW, winH);
+      ctx.fillRect(screenX + b.width - 20, wy, winW, winH);
+      // Ember glow inside window cavity
+      ctx.fillStyle = 'rgba(234, 88, 12, 0.65)';
+      ctx.fillRect(screenX + 13, wy + winH - 3, winW - 2, 2.5);
+    }
+
+    // 6. Active Smoldering Fire Tongues licking from rubble
+    const flicker1 = Math.sin(gameTime * 9 + screenX) * 4;
+    const flicker2 = Math.cos(gameTime * 11 + screenX) * 5;
+    ctx.fillStyle = '#ea580c';
+    ctx.beginPath();
+    ctx.moveTo(screenX + b.width * 0.35, ruinY + 14);
+    ctx.lineTo(screenX + b.width * 0.42, ruinY - 6 + flicker1);
+    ctx.lineTo(screenX + b.width * 0.48, ruinY + 12);
+    ctx.closePath();
     ctx.fill();
 
-    // Neutralized label
-    ctx.font = '700 9px "JetBrains Mono", monospace';
+    ctx.fillStyle = '#f59e0b';
+    ctx.beginPath();
+    ctx.moveTo(screenX + b.width * 0.55, ruinY + 16);
+    ctx.lineTo(screenX + b.width * 0.62, ruinY - 4 + flicker2);
+    ctx.lineTo(screenX + b.width * 0.68, ruinY + 14);
+    ctx.closePath();
+    ctx.fill();
+
+    // 7. Crumbled Angular Masonry & Shattered Concrete Slabs (NO CIRCLES / NO WHEELS)
+    ctx.fillStyle = '#292524';
+    // Left jagged rubble heap
+    ctx.beginPath();
+    ctx.moveTo(screenX - 4, GROUND_Y);
+    ctx.lineTo(screenX + 2, GROUND_Y - 9);
+    ctx.lineTo(screenX + 11, GROUND_Y - 12);
+    ctx.lineTo(screenX + 19, GROUND_Y - 5);
+    ctx.lineTo(screenX + 24, GROUND_Y);
+    ctx.closePath();
+    ctx.fill();
+
+    // Center jagged rubble heap
+    ctx.beginPath();
+    ctx.moveTo(screenX + b.width * 0.35, GROUND_Y);
+    ctx.lineTo(screenX + b.width * 0.44, GROUND_Y - 10);
+    ctx.lineTo(screenX + b.width * 0.54, GROUND_Y - 8);
+    ctx.lineTo(screenX + b.width * 0.65, GROUND_Y);
+    ctx.closePath();
+    ctx.fill();
+
+    // Right jagged rubble heap
+    ctx.beginPath();
+    ctx.moveTo(screenX + b.width - 24, GROUND_Y);
+    ctx.lineTo(screenX + b.width - 15, GROUND_Y - 11);
+    ctx.lineTo(screenX + b.width - 4, GROUND_Y - 6);
+    ctx.lineTo(screenX + b.width + 4, GROUND_Y);
+    ctx.closePath();
+    ctx.fill();
+
+    // Shattered angular brick chunks
+    ctx.fillStyle = '#78350f';
+    ctx.fillRect(screenX + 5, GROUND_Y - 6, 6, 3);
+    ctx.fillRect(screenX + b.width * 0.46, GROUND_Y - 7, 7, 4);
+    ctx.fillRect(screenX + b.width - 15, GROUND_Y - 5, 5, 3);
+
+    // Glowing ember beds among the rubble
+    ctx.fillStyle = '#f97316';
+    ctx.fillRect(screenX + 10, GROUND_Y - 8, b.width - 20, 3);
+    ctx.fillStyle = '#fef08a';
+    ctx.fillRect(screenX + 16, GROUND_Y - 7, b.width * 0.4, 1.5);
+
+    // 8. Stenciled Status Marker
+    ctx.font = '800 9px "JetBrains Mono", monospace';
     ctx.textAlign = 'center';
     ctx.fillStyle = b.type === 'ENEMY' ? '#22c55e' : '#ef4444';
-    ctx.fillText(b.type === 'ENEMY' ? "NEUTRALIZED" : "CASUALTY", screenX + b.width / 2, ruinY - 6);
+    ctx.fillText(b.type === 'ENEMY' ? "TARGET DESTROYED" : "CIVILIAN COLLATERAL", screenX + b.width / 2, ruinY - 16);
   }
 
   private drawAimGuide(plane: SpitfirePlane, cameraX: number) {
-    if (plane.bombCooldown > 0.05 || plane.isTurning180) return;
+    if (plane.isDestroyed || plane.isCrashing || plane.bombCooldown > 0.05 || plane.isTurning180) return;
 
     const ctx = this.ctx;
     const dir = plane.direction ?? 1;
@@ -843,6 +1003,8 @@ export class GameRenderer {
   }
 
   private drawSpitfire(plane: SpitfirePlane, cameraX: number) {
+    if (plane.isDestroyed) return;
+
     const ctx = this.ctx;
     const screenX = plane.x - cameraX;
     const screenY = plane.y;
@@ -1171,6 +1333,14 @@ export class GameRenderer {
         ctx.beginPath();
         ctx.arc(screenX, p.y, radius, 0, Math.PI * 2);
         ctx.stroke();
+      } else if (p.type === 'smoke') {
+        // Realistic billowing smoke puff: expands naturally as it ascends!
+        const expansion = 1 + (1 - p.life / p.maxLife) * 1.6;
+        const currentRadius = p.size * expansion;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(screenX, p.y, currentRadius, 0, Math.PI * 2);
+        ctx.fill();
       } else {
         ctx.fillStyle = p.color;
         ctx.beginPath();

@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Award, ArrowRight, ShieldCheck, AlertCircle, RotateCcw } from 'lucide-react';
 import { MissionStats, SectorConfig } from '../types/game';
+import { sound } from '../audio/soundEngine';
 
 interface SectorClearModalProps {
   stats: MissionStats;
@@ -17,6 +18,9 @@ export const SectorClearModal: React.FC<SectorClearModalProps> = ({
   onNextSector,
   onReplaySector,
 }) => {
+  useEffect(() => {
+    sound.stopEngine();
+  }, []);
   const isZeroCollateral = stats.civilianHit === 0;
 
   return (
