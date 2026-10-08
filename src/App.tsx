@@ -118,25 +118,6 @@ export default function App() {
               </div>
             </div>
           )}
-
-          {/* Paused Overlay */}
-          {gameState === 'PAUSED' && (
-            <div className="absolute inset-0 bg-stone-950/75 backdrop-blur-xs flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-150">
-              <span className="text-xs uppercase tracking-widest text-amber-400 font-mono font-bold">
-                Tactical Hold
-              </span>
-              <h2 className="text-3xl font-black text-white font-['Cabinet_Grotesk'] tracking-tight mt-1 mb-4">
-                Flight Suspended
-              </h2>
-              <button
-                onClick={togglePause}
-                className="flex items-center gap-2 px-6 py-2.5 text-sm font-bold font-['Cabinet_Grotesk'] uppercase tracking-wider bg-amber-500 hover:bg-amber-400 text-stone-950 rounded-xl transition-all cursor-pointer"
-              >
-                <Play className="w-4 h-4 fill-stone-950" />
-                <span>Resume Sortie</span>
-              </button>
-            </div>
-          )}
         </div>
 
         {/* Tactical Arcade Controls */}

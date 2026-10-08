@@ -35,6 +35,26 @@ export interface Building {
   aaBurstTimer?: number;
 }
 
+export type GroundGunType = 'sandbag_flak' | 'concrete_emplacement' | 'bunker_roof_flak' | 'checkpoint_flak';
+
+export interface GroundGun {
+  id: string;
+  x: number;             // World X position
+  y: number;             // Base Y (typically GROUND_Y or rooftop Y)
+  width: number;
+  height: number;
+  destroyed: boolean;
+  gunType: GroundGunType;
+  cooldown: number;      // Seconds until next burst
+  burstCount: number;    // Rounds remaining in active burst
+  burstTimer: number;    // Delay between rounds in burst
+  aimAngle: number;      // Tracking angle pointing towards the Spitfire
+  recoilOffset?: number; // Visual recoil kickback when firing
+  isRooftop?: boolean;
+  buildingId?: string;   // Optional parent building id if mounted on a roof
+  name?: string;
+}
+
 export interface Bomb {
   id: string;
   x: number;

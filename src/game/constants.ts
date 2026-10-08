@@ -14,21 +14,43 @@ export const BOMB_GRAVITY = 320;                // Graceful, readable downward c
 export const BOMB_COOLDOWN = 0.45;              // Minimum time between bomb drops
 export const BOMB_SPLASH_RADIUS = 20;           // Tight, controlled near-miss tolerance for street impacts
 
-// Missile Mechanics (Miniature Tactical Rockets)
-export const MISSILE_SPEED = 135;              // Measured, readable speed
-export const MISSILE_TURN_RATE = 1.35;         // Max steering angle per sec (rad/s)
-export const MISSILE_FUEL_DURATION = 5.2;      // Lifespan
-export const MISSILE_DETECTION_RANGE = 480;    // Proximity detection
+// Missile Mechanics (Miniature Tactical Rockets & Silos)
+export const MISSILE_SPEED = 180;              // Measured, readable speed
+export const MISSILE_TURN_RATE = 0.8;         // Max steering angle per sec (rad/s)
+export const MISSILE_FUEL_DURATION = 8.2;      // Lifespan
+export const MISSILE_DETECTION_RANGE = 3080;    // Proximity detection range for silos to engage
+export const MISSILE_TRACKING_EVADE_RANGE = 130;// Proximity range to trigger Standing Loop missile evasion
 
-// Hull Armor & Gunfire System (Intense Gunfire & Strafing)
+// Missile Launch Cooldown & Rates (Time in seconds between missile launches)
+export const MISSILE_COOLDOWN_RADAR_BASE = 4.8;    // Base reload interval for Mobile Radar Stations
+export const MISSILE_COOLDOWN_SILO_BASE = 6.2;     // Base reload interval for standard enemy bunker silos
+export const MISSILE_COOLDOWN_HAYWIRE_BASE = 3.8;  // Reload interval when radar is jammed/haywire
+export const MISSILE_COOLDOWN_VARIANCE = 2.2;      // Random jitter added to missile reload cooldowns
+export const MISSILE_INITIAL_DELAY_RADAR_MIN = 3.8;// Initial delay for radar station before first missile
+export const MISSILE_INITIAL_DELAY_RADAR_MAX = 6.3;// Max initial delay for radar station
+export const MISSILE_INITIAL_DELAY_SILO_MIN = 4.5; // Initial delay for bunker silo before first missile
+export const MISSILE_INITIAL_DELAY_SILO_MAX = 7.5; // Max initial delay for bunker silo
+
+// Enemy Anti-Aircraft (AA) Flak Artillery (Ground Pits & Rooftop Mounts)
+export const AA_GUN_RANGE = 460;                  // Radial maximum engagement range
+export const AA_GUN_HORIZONTAL_RANGE = 460;       // Max horizontal distance along ground to engage
+export const AA_GUN_FIRE_RATE = 0.085;            // Burst fire cadence: duration between consecutive shots in a burst (seconds)
+export const AA_GUN_BURST_INTERVAL = 0.085;       // Alias for duration per shot in an active burst
+export const AA_GUN_BURST_MIN_SHOTS = 3;          // Minimum tracer shells per firing burst
+export const AA_GUN_BURST_MAX_SHOTS = 5;          // Maximum tracer shells per firing burst
+export const AA_GUN_COOLDOWN_BASE = 1.4;          // Base reload cooldown between burst barrages (seconds)
+export const AA_GUN_COOLDOWN_VARIANCE = 1.6;      // Random variance added between burst barrages
+export const AA_GUN_INITIAL_DELAY_MIN = 1.2;      // Min starting cooldown before first AA burst in sector
+export const AA_GUN_INITIAL_DELAY_MAX = 3.0;      // Max starting cooldown before first AA burst in sector
+export const ENEMY_BULLET_SPEED = 260;            // Observable anti-aircraft tracer shell speed
+export const ENEMY_BULLET_DAMAGE = 2;             // Observable anti-aircraft tracer chipping damage
+
+// Player Spitfire Weaponry & Armor (Intense Gunfire & Strafing)
 export const PLANE_MAX_HULL = 100;
-export const ENEMY_BULLET_DAMAGE = 8;           // Observable anti-aircraft tracer chipping damage
-export const ENEMY_MISSILE_DAMAGE = 50;         // Catastrophic heavy blast damage (50% of hull)
-export const PLAYER_BULLET_DAMAGE = 25;         // Strafe damage: 4-5 direct hits demolishes enemy installations!
-export const PLAYER_BULLET_SPEED = 540;         // High-velocity .303 Browning stream
-export const ENEMY_BULLET_SPEED = 260;          // Observable anti-aircraft tracer shell speed
-export const MACHINE_GUN_COOLDOWN = 0.065;      // High-cadence automatic machine gun rate
-export const AA_GUN_RANGE = 460;                // Flak & anti-aircraft barrage range
+export const PLAYER_BULLET_DAMAGE = 25;           // Strafe damage: 4 direct hits demolishes enemy installations!
+export const PLAYER_BULLET_SPEED = 540;           // High-velocity .303 Browning stream
+export const MACHINE_GUN_COOLDOWN = 0.065;        // Player Browning machine gun cadence (seconds between rounds)
+export const ENEMY_MISSILE_DAMAGE = 25;           // Catastrophic heavy blast damage (25% of hull)
 
 // Scoring
 export const SCORE_ENEMY_DESTROYED = 250;

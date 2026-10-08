@@ -1,4 +1,13 @@
-import { Building, SectorConfig } from '../types/game';
+import { Building, SectorConfig, GroundGun } from '../types/game';
+import {
+  GROUND_Y,
+  MISSILE_INITIAL_DELAY_RADAR_MIN,
+  MISSILE_INITIAL_DELAY_RADAR_MAX,
+  MISSILE_INITIAL_DELAY_SILO_MIN,
+  MISSILE_INITIAL_DELAY_SILO_MAX,
+  AA_GUN_INITIAL_DELAY_MIN,
+  AA_GUN_INITIAL_DELAY_MAX,
+} from './constants';
 
 export const SECTORS: SectorConfig[] = [
   {
@@ -159,8 +168,8 @@ export function generateSectorBuildings(config: SectorConfig): Building[] {
             windowRows: 1,
             windowCols: 3,
           },
-          missileCooldown: 3.8 + Math.random() * 2.5,
-          aaGunCooldown: 1.8 + Math.random() * 2.2,
+          missileCooldown: MISSILE_INITIAL_DELAY_RADAR_MIN + Math.random() * (MISSILE_INITIAL_DELAY_RADAR_MAX - MISSILE_INITIAL_DELAY_RADAR_MIN),
+          aaGunCooldown: AA_GUN_INITIAL_DELAY_MIN + Math.random() * (AA_GUN_INITIAL_DELAY_MAX - AA_GUN_INITIAL_DELAY_MIN),
           aaBurstCount: 0,
           aaBurstTimer: 0,
           radarAngle: 0,
@@ -195,8 +204,8 @@ export function generateSectorBuildings(config: SectorConfig): Building[] {
             windowRows: Math.max(1, Math.floor(height / 28)),
             windowCols: Math.max(1, Math.floor(width / 22)),
           },
-          missileCooldown: 4.5 + Math.random() * 3.0, // Generous initial delay
-          aaGunCooldown: 1.5 + Math.random() * 2.5,
+          missileCooldown: MISSILE_INITIAL_DELAY_SILO_MIN + Math.random() * (MISSILE_INITIAL_DELAY_SILO_MAX - MISSILE_INITIAL_DELAY_SILO_MIN),
+          aaGunCooldown: AA_GUN_INITIAL_DELAY_MIN + Math.random() * (AA_GUN_INITIAL_DELAY_MAX - AA_GUN_INITIAL_DELAY_MIN),
           aaBurstCount: 0,
           aaBurstTimer: 0,
           radarAngle: Math.random() * Math.PI,
@@ -242,4 +251,109 @@ export function generateSectorBuildings(config: SectorConfig): Building[] {
   }
 
   return buildings;
+}
+
+export function generateSectorGroundGuns(buildings: Building[], config?: SectorConfig): GroundGun[] {
+  const guns: GroundGun[] = [];
+
+  // 1. Single forward approach outpost in the open field (well before first building)
+  guns.push({
+    id: `gg-approach-${Date.now()}`,
+    x: 210,
+    y: GROUND_Y,
+    width: 28,
+    height: 18,
+    destroyed: false,
+    gunType: 'checkpoint_flak',
+    cooldown: AA_GUN_INITIAL_DELAY_MIN + Math.random() * (AA_GUN_INITIAL_DELAY_MAX - AA_GUN_INITIAL_DELAY_MIN),
+    burstCount: 0,
+    burstTimer: 0,
+    aimAngle: -Math.PI * 0.46,
+    recoilOffset: 0,
+    name: "Forward Outpost Flak Battery",
+  });
+
+  // 2. Rooftop AA Turrets safely mounted ONLY on Enemy Military Bunkers
+  // (Zero civilian proximity risk: bombing the designated enemy target neutralizes the turret)
+  let enemyRoofGunCount = 0;
+  for (let i = 0; i < buildings.length; i++) {
+    const b = buildings[i];
+    if (b.type === 'ENEMY') {
+      enemyRoofGunCount++;
+      // Mount rooftop flak on select fortified enemy command installations
+      if (enemyRoofGunCount % 2 === 1 || b.isRadarUnit) {
+        const roofY = GROUND_Y - b.height;
+        guns.push({
+          id: `gg-roof-${b.id}`,
+          x: b.x + b.width * 0.28,
+          y: roofY,
+          width: 22,
+          height: 14,
+          destroyed: false,
+          gunType: 'bunker_roof_flak',
+          cooldown: AA_GUN_INITIAL_DELAY_MIN + Math.random() * (AA_GUN_INITIAL_DELAY_MAX - AA_GUN_INITIAL_DELAY_MIN),
+          burstCount: 0,
+          burstTimer: 0,
+          aimAngle: -Math.PI * 0.5,
+          recoilOffset: 0,
+          isRooftop: true,
+          buildingId: b.id,
+          name: "Rooftop Fortified Flak Turret",
+        });
+      }
+    }
+  }
+
+  // 3. At most 1 isolated ground flak emplacement at an enemy depot clearing (at least 75px clear of civilians)
+  for (let i = 0; i < buildings.length - 1; i++) {
+    const b1 = buildings[i];
+    const b2 = buildings[i + 1];
+    const gapStart = b1.x + b1.width;
+    const gapEnd = b2.x;
+    const gapWidth = gapEnd - gapStart;
+
+    // Only place in a wide military buffer gap between enemy facilities or after an enemy complex
+    if (b1.type === 'ENEMY' && gapWidth >= 40) {
+      guns.push({
+        id: `gg-military-depot-${Date.now()}`,
+        x: gapStart + gapWidth / 2,
+        y: GROUND_Y,
+        width: 26,
+        height: 18,
+        destroyed: false,
+        gunType: 'concrete_emplacement',
+        cooldown: AA_GUN_INITIAL_DELAY_MIN + Math.random() * (AA_GUN_INITIAL_DELAY_MAX - AA_GUN_INITIAL_DELAY_MIN),
+        burstCount: 0,
+        burstTimer: 0,
+        aimAngle: -Math.PI * 0.5,
+        recoilOffset: 0,
+        name: "Military Depot 20mm Flak",
+      });
+      break; // Only 1 ground depot flak in the city!
+    }
+  }
+
+  // 4. Single rear perimeter boundary gun in the open field past the final building
+  if (buildings.length > 0) {
+    const lastBldg = buildings[buildings.length - 1];
+    const exitBase = lastBldg.x + lastBldg.width;
+
+    guns.push({
+      id: `gg-exit-${Date.now()}`,
+      x: exitBase + 75,
+      y: GROUND_Y,
+      width: 28,
+      height: 18,
+      destroyed: false,
+      gunType: 'sandbag_flak',
+      cooldown: AA_GUN_INITIAL_DELAY_MIN + Math.random() * (AA_GUN_INITIAL_DELAY_MAX - AA_GUN_INITIAL_DELAY_MIN),
+      burstCount: 0,
+      burstTimer: 0,
+      aimAngle: -Math.PI * 0.52,
+      recoilOffset: 0,
+      name: "Rear Perimeter Boundary Flak",
+    });
+  }
+
+  return guns;
 }

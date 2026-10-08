@@ -9,7 +9,8 @@ import {
   FloatingText,
   SpitfirePlane,
   MissionStats,
-  SectorConfig
+  SectorConfig,
+  GroundGun
 } from '../types/game';
 import {
   PLANE_CRUISE_Y,
@@ -26,6 +27,11 @@ import {
   MISSILE_TURN_RATE,
   MISSILE_FUEL_DURATION,
   MISSILE_DETECTION_RANGE,
+  MISSILE_TRACKING_EVADE_RANGE,
+  MISSILE_COOLDOWN_RADAR_BASE,
+  MISSILE_COOLDOWN_SILO_BASE,
+  MISSILE_COOLDOWN_HAYWIRE_BASE,
+  MISSILE_COOLDOWN_VARIANCE,
   PLANE_MAX_HULL,
   ENEMY_BULLET_DAMAGE,
   ENEMY_MISSILE_DAMAGE,
@@ -34,6 +40,13 @@ import {
   ENEMY_BULLET_SPEED,
   MACHINE_GUN_COOLDOWN,
   AA_GUN_RANGE,
+  AA_GUN_HORIZONTAL_RANGE,
+  AA_GUN_FIRE_RATE,
+  AA_GUN_BURST_INTERVAL,
+  AA_GUN_BURST_MIN_SHOTS,
+  AA_GUN_BURST_MAX_SHOTS,
+  AA_GUN_COOLDOWN_BASE,
+  AA_GUN_COOLDOWN_VARIANCE,
   SCORE_ENEMY_DESTROYED,
   SCORE_MISSILE_EVADED,
   SCORE_MISSILE_HIT,
@@ -41,7 +54,7 @@ import {
   BONUS_SECTOR_CLEAR,
   BONUS_PERFECT_CIVILIAN
 } from './constants';
-import { SECTORS, generateSectorBuildings } from './cityGenerator';
+import { SECTORS, generateSectorBuildings, generateSectorGroundGuns } from './cityGenerator';
 import { sound } from '../audio/soundEngine';
 import { GameRenderer } from './renderer';
 
@@ -100,6 +113,7 @@ export function useSpitfireGame() {
   });
 
   const buildingsRef = useRef<Building[]>([]);
+  const groundGunsRef = useRef<GroundGun[]>([]);
   const bombsRef = useRef<Bomb[]>([]);
   const missilesRef = useRef<Missile[]>([]);
   const bulletsRef = useRef<Bullet[]>([]);
@@ -130,6 +144,7 @@ export function useSpitfireGame() {
     const config = SECTORS[sectorIdx % SECTORS.length];
     const generated = generateSectorBuildings(config);
     buildingsRef.current = generated;
+    groundGunsRef.current = generateSectorGroundGuns(generated, config);
     bombsRef.current = [];
     missilesRef.current = [];
     bulletsRef.current = [];
@@ -217,9 +232,11 @@ export function useSpitfireGame() {
       bombVy = 20;
     }
 
-    // Spawn position adjusted to plane's current orientation
-    const spawnX = plane.x + Math.cos(angle) * (4 * dir) - Math.sin(angle) * 8;
-    const spawnY = plane.y + Math.sin(angle) * 4 + Math.cos(angle) * 8;
+    // Spawn position adjusted to plane's current orientation & heading
+    const localRackX = 4 * Math.cos(angle) - 8 * Math.sin(angle);
+    const localRackY = 4 * Math.sin(angle) + 8 * Math.cos(angle);
+    const spawnX = plane.x + dir * localRackX;
+    const spawnY = plane.y + localRackY;
 
     const newBomb: Bomb = {
       id: `bomb-${Date.now()}-${Math.random()}`,
@@ -279,12 +296,22 @@ export function useSpitfireGame() {
     const cosA = Math.cos(angles);
     const sinA = Math.sin(angles);
 
+    // Forward direction unit vector in world space:
+    // Local forward is (+1, 0). After local rotate(angles) and canvas scale(dir, 1):
+    // world forward vector is (dir * cosA, sinA).
+    const forwardX = dir * cosA;
+    const forwardY = sinA;
+
     // Quad Browning .303 machine gun battery (port and starboard wing pairs)
     [-8, -3, 3, 8].forEach((offsetY) => {
-      const muzzleX = plane.x + cosA * (dir * 22) - sinA * offsetY;
-      const muzzleY = plane.y + sinA * (dir * 22) + cosA * offsetY;
-      const bulletVx = dir * PLAYER_BULLET_SPEED * cosA;
-      const bulletVy = dir * PLAYER_BULLET_SPEED * sinA + (Math.random() - 0.5) * 12;
+      // Local wing gun muzzle position: forward +22, lateral offset offsetY
+      const localMuzzleX = 22 * cosA - offsetY * sinA;
+      const localMuzzleY = 22 * sinA + offsetY * cosA;
+
+      const muzzleX = plane.x + dir * localMuzzleX;
+      const muzzleY = plane.y + localMuzzleY;
+      const bulletVx = forwardX * PLAYER_BULLET_SPEED;
+      const bulletVy = forwardY * PLAYER_BULLET_SPEED + (Math.random() - 0.5) * 12;
 
       bulletsRef.current.push({
         id: `bullet-p-${Date.now()}-${Math.random()}`,
@@ -314,12 +341,17 @@ export function useSpitfireGame() {
       });
     });
 
-    // Ejected hot brass shell casings
+    // Ejected hot brass shell casings (ejecting from fuselage breech)
+    const localEjectX = -8 * cosA - 4 * sinA;
+    const localEjectY = -8 * sinA + 4 * cosA;
+    const caseVx = -dir * (35 + Math.random() * 25) * cosA;
+    const caseVy = 45 + Math.random() * 35;
+
     particlesRef.current.push({
-      x: plane.x - dir * 8,
-      y: plane.y + 4,
-      vx: -dir * (35 + Math.random() * 25),
-      vy: 45 + Math.random() * 35,
+      x: plane.x + dir * localEjectX,
+      y: plane.y + localEjectY,
+      vx: caseVx,
+      vy: caseVy,
       color: '#eab308',
       size: 1.5,
       maxLife: 0.35,
@@ -490,6 +522,14 @@ export function useSpitfireGame() {
       bldg.destroyed = true;
       bldg.hp = 0;
       const bldgTop = GROUND_Y - bldg.height;
+
+      // Demolish any rooftop flak guns mounted on this building
+      for (const gun of groundGunsRef.current) {
+        if (gun.isRooftop && gun.buildingId === bldg.id && !gun.destroyed) {
+          gun.destroyed = true;
+          spawnExplosion(gun.x, gun.y, false);
+        }
+      }
 
       if (bldg.type === 'ENEMY') {
         sound.playExplosion(true);
@@ -958,23 +998,36 @@ export function useSpitfireGame() {
         sound.playExplosion(false);
         rendererRef.current?.triggerScreenShake(5, 0.22);
 
-        // Ground Impact: Destroy single closest building if the bomb landed right next to its base (within BOMB_SPLASH_RADIUS = 20px)
-        let closestBldg: Building | null = null;
+        // Ground Impact: Destroy adjacent ENEMY building if the bomb landed right next to its base (within BOMB_SPLASH_RADIUS = 20px)
+        // Civilian buildings strictly require a direct direct bomb hit so street detonations never cause accidental civilian casualties!
+        let closestEnemyBldg: Building | null = null;
         let minBldgDist = BOMB_SPLASH_RADIUS;
 
         for (const bldg of buildingsRef.current) {
-          if (bldg.destroyed) continue;
+          if (bldg.destroyed || bldg.type !== 'ENEMY') continue;
           const closestX = Math.max(bldg.x, Math.min(b.x, bldg.x + bldg.width));
           const distToBldg = Math.abs(b.x - closestX);
 
           if (distToBldg <= minBldgDist) {
             minBldgDist = distToBldg;
-            closestBldg = bldg;
+            closestEnemyBldg = bldg;
           }
         }
 
-        if (closestBldg) {
-          handleBuildingDestruction(closestBldg, true, false);
+        if (closestEnemyBldg) {
+          handleBuildingDestruction(closestEnemyBldg, true, false);
+        }
+
+        // Bomb blast neutralizes adjacent ground flak guns
+        for (const gun of groundGunsRef.current) {
+          if (gun.destroyed) continue;
+          if (Math.abs(b.x - gun.x) < 38) {
+            gun.destroyed = true;
+            spawnExplosion(gun.x, gun.y - 6, false);
+            sound.playExplosion(false);
+            setStats(prev => ({ ...prev, score: prev.score + 100 }));
+            addFloatingText("+100 FLAK NEUTRALIZED!", gun.x, gun.y - 18, '#fbbf24');
+          }
         }
         continue;
       }
@@ -1005,9 +1058,11 @@ export function useSpitfireGame() {
         bldg.missileCooldown -= dt;
         if (bldg.missileCooldown <= 0) {
           const isHaywire = !!bldg.isJammed;
-          // Noticeably lower launching frequency for balanced, tactical gameplay
-          const fireInterval = bldg.isRadarUnit ? 4.8 : (isHaywire ? 3.8 : 6.2);
-          bldg.missileCooldown = (fireInterval / currentSectorConfig.missileFireRateFactor) + Math.random() * 2.2;
+          // Reload interval controlled by central constants & sector difficulty factor
+          const fireInterval = bldg.isRadarUnit
+            ? MISSILE_COOLDOWN_RADAR_BASE
+            : (isHaywire ? MISSILE_COOLDOWN_HAYWIRE_BASE : MISSILE_COOLDOWN_SILO_BASE);
+          bldg.missileCooldown = (fireInterval / currentSectorConfig.missileFireRateFactor) + Math.random() * MISSILE_COOLDOWN_VARIANCE;
 
           const launchX = bldg.x + bldg.width / 2;
           const launchY = GROUND_Y - bldg.height - 10;
@@ -1102,7 +1157,7 @@ export function useSpitfireGame() {
 
         // Check for Tactical Standing Loop Evasion:
         const dist = Math.hypot(dx, dy);
-        if (plane.isLooping && dist < 130 && (Math.abs(angleDelta) > 1.1 || m.y < plane.y + 15)) {
+        if (plane.isLooping && dist < MISSILE_TRACKING_EVADE_RANGE && (Math.abs(angleDelta) > 1.1 || m.y < plane.y + 15)) {
           m.overshot = true;
           setStats(prev => {
             const newScore = prev.score + SCORE_MISSILE_EVADED;
@@ -1253,65 +1308,86 @@ export function useSpitfireGame() {
       }
     }
 
-    // 5. Enemy Anti-Aircraft (AA) Gunfire Simulation (Flak Barrage)
-    for (const bldg of buildingsRef.current) {
-      if (bldg.type !== 'ENEMY' || bldg.destroyed) continue;
+    // 5. Enemy Anti-Aircraft (AA) Ground & Rooftop Flak Artillery Simulation
+    for (const gun of groundGunsRef.current) {
+      if (gun.destroyed) continue;
 
-      const distToPlane = Math.abs(plane.x - (bldg.x + bldg.width / 2));
-      // In range and not jammed
-      if (distToPlane < AA_GUN_RANGE && !bldg.isJammed) {
-        bldg.aaGunCooldown = (bldg.aaGunCooldown ?? 1.5) - dt;
-        if (bldg.aaGunCooldown <= 0) {
-          // Trigger energetic 5-round rapid tracer burst!
-          bldg.aaBurstCount = 5;
-          bldg.aaBurstTimer = 0.02;
-          bldg.aaGunCooldown = 1.2 / currentSectorConfig.missileFireRateFactor + Math.random() * 0.9;
+      // Rooftop guns check parent building status
+      if (gun.isRooftop && gun.buildingId) {
+        const parentBldg = buildingsRef.current.find(b => b.id === gun.buildingId);
+        if (parentBldg && parentBldg.destroyed) {
+          gun.destroyed = true;
+          continue;
         }
       }
 
-      // Process active burst
-      if ((bldg.aaBurstCount ?? 0) > 0) {
-        bldg.aaBurstTimer = (bldg.aaBurstTimer ?? 0) - dt;
-        if (bldg.aaBurstTimer <= 0) {
-          bldg.aaBurstCount = (bldg.aaBurstCount ?? 0) - 1;
-          bldg.aaBurstTimer = 0.08; // High cadence between rounds in burst
+      const gunTopY = gun.y - gun.height;
+      const targetX = plane.x + (plane.direction * plane.speed * 0.22);
+      const targetY = plane.y;
+      const targetAngle = Math.atan2(targetY - gunTopY, targetX - gun.x);
 
-          const gunX = bldg.x + bldg.width / 2 + (Math.random() - 0.5) * 8;
-          const gunY = GROUND_Y - bldg.height - 4;
+      // Smoothly rotate gun carriage toward incoming Spitfire
+      gun.aimAngle += (targetAngle - gun.aimAngle) * Math.min(1, dt * 5.5);
 
-          // Aim at Spitfire flight path with lead prediction
-          const targetX = plane.x + (plane.direction * plane.speed * 0.35) + (Math.random() - 0.5) * 35;
-          const targetY = plane.y + (Math.random() - 0.5) * 20;
-          const angle = Math.atan2(targetY - gunY, targetX - gunX);
+      // Recoil kickback recovery
+      if ((gun.recoilOffset ?? 0) > 0) {
+        gun.recoilOffset = Math.max(0, (gun.recoilOffset ?? 0) - dt * 26);
+      }
 
-          bulletsRef.current.push({
-            id: `bullet-e-${Date.now()}-${Math.random()}`,
-            x: gunX,
-            y: gunY,
-            vx: Math.cos(angle) * ENEMY_BULLET_SPEED,
-            vy: Math.sin(angle) * ENEMY_BULLET_SPEED,
-            isPlayer: false,
-            damage: ENEMY_BULLET_DAMAGE,
-            alive: true,
-            life: 2.2,
-            color: '#ef4444',
-          });
+      // Check distance to Spitfire
+      const distToPlane = Math.hypot(plane.x - gun.x, plane.y - gunTopY);
+      const inFiringSector = distToPlane < AA_GUN_RANGE && Math.abs(plane.x - gun.x) < AA_GUN_HORIZONTAL_RANGE;
 
-          // AA Muzzle flash spark
-          particlesRef.current.push({
-            x: gunX,
-            y: gunY,
-            vx: (Math.random() - 0.5) * 30,
-            vy: -25 - Math.random() * 25,
-            color: '#f97316',
-            size: 2,
-            maxLife: 0.12,
-            life: 0.12,
-            type: 'spark',
-            alpha: 0.9,
-          });
+      if (inFiringSector) {
+        if (gun.burstCount > 0) {
+          gun.burstTimer -= dt;
+          if (gun.burstTimer <= 0) {
+            gun.burstCount--;
+            gun.burstTimer = AA_GUN_BURST_INTERVAL;
+            gun.recoilOffset = 3.5;
 
-          sound.playAABullet();
+            // Muzzle position along barrel angle
+            const muzzleX = gun.x + Math.cos(gun.aimAngle) * 16;
+            const muzzleY = gunTopY + Math.sin(gun.aimAngle) * 16;
+
+            bulletsRef.current.push({
+              id: `bullet-flak-${Date.now()}-${Math.random()}`,
+              x: muzzleX,
+              y: muzzleY,
+              vx: Math.cos(gun.aimAngle) * ENEMY_BULLET_SPEED,
+              vy: Math.sin(gun.aimAngle) * ENEMY_BULLET_SPEED,
+              isPlayer: false,
+              damage: ENEMY_BULLET_DAMAGE,
+              alive: true,
+              life: 2.2,
+              color: '#ef4444',
+            });
+
+            // AA Muzzle flash starburst & sparks
+            particlesRef.current.push({
+              x: muzzleX,
+              y: muzzleY,
+              vx: (Math.random() - 0.5) * 35,
+              vy: -20 - Math.random() * 25,
+              color: '#f97316',
+              size: 2.4,
+              maxLife: 0.14,
+              life: 0.14,
+              type: 'spark',
+              alpha: 0.95,
+            });
+
+            sound.playAABullet();
+          }
+        } else {
+          gun.cooldown -= dt;
+          if (gun.cooldown <= 0) {
+            gun.burstCount = Math.floor(
+              AA_GUN_BURST_MIN_SHOTS + Math.random() * (AA_GUN_BURST_MAX_SHOTS - AA_GUN_BURST_MIN_SHOTS + 1)
+            );
+            gun.burstTimer = 0.02;
+            gun.cooldown = (AA_GUN_COOLDOWN_BASE / currentSectorConfig.missileFireRateFactor) + Math.random() * AA_GUN_COOLDOWN_VARIANCE;
+          }
         }
       }
     }
@@ -1536,40 +1612,71 @@ export function useSpitfireGame() {
             break;
           }
         }
+
+        // 3. Ground Guns: Light machine gun bullets ping harmlessly off armored flak sandbags & mountings
+        if (b.alive) {
+          for (const gun of groundGunsRef.current) {
+            if (gun.destroyed) continue;
+            const gunTop = gun.y - gun.height;
+            if (b.x >= gun.x - 14 && b.x <= gun.x + 14 && b.y >= gunTop - 4 && b.y <= gun.y + 2) {
+              b.alive = false;
+              sound.playBulletHit();
+              for (let s = 0; s < 3; s++) {
+                particlesRef.current.push({
+                  x: b.x,
+                  y: b.y,
+                  vx: -Math.sign(b.vx || 1) * (20 + Math.random() * 40),
+                  vy: -Math.random() * 30,
+                  color: '#facc15',
+                  size: 1.6,
+                  maxLife: 0.18,
+                  life: 0.18,
+                  type: 'spark',
+                  alpha: 0.85,
+                });
+              }
+              if (Math.random() < 0.12) {
+                addFloatingText("ARMORED FLAK · DROP BOMBS!", gun.x, gunTop - 15, '#94a3b8');
+              }
+              break;
+            }
+          }
+        }
       }
     }
 
-    // 7. Continuous Billowing Smoke & Fire Plumes from Bombed Buildings
+    // 7. Continuous Volumetric Billowing Smoke & Fire Plumes from Bombed Buildings
     for (const bldg of buildingsRef.current) {
       if (!bldg.destroyed) continue;
 
       const screenX = bldg.x - cameraXRef.current;
       // Only emit smoke for ruins visible on or near the screen
-      if (screenX + bldg.width < -120 || screenX > CANVAS_VIRTUAL_WIDTH + 120) continue;
+      if (screenX + bldg.width < -140 || screenX > CANVAS_VIRTUAL_WIDTH + 140) continue;
 
       const ruinHeight = Math.max(34, bldg.height * 0.38);
       const ruinTopY = GROUND_Y - ruinHeight;
 
-      // Billow rate: active continuous puffs ascending into the atmosphere
-      if (Math.random() < 0.7) {
-        const emitX = bldg.x + 6 + Math.random() * (bldg.width - 12);
-        const emitY = ruinTopY + Math.random() * 8;
-        const isEmber = Math.random() < 0.22;
-        const windDrift = (Math.random() - 0.5) * 16 + 5; // gentle ambient wind
+      // Voluminous rising smoke column: 1-3 puffs per frame climbing high into the atmosphere
+      const puffCount = Math.random() < 0.85 ? (bldg.width > 60 ? 2 : 1) : 0;
+      for (let p = 0; p < puffCount; p++) {
+        const emitX = bldg.x + 8 + Math.random() * (bldg.width - 16);
+        const emitY = ruinTopY + Math.random() * 10;
+        const isEmber = Math.random() < 0.2;
+        const windDrift = 12 + (Math.random() - 0.5) * 16; // atmospheric wind carrying smoke downrange
 
         particlesRef.current.push({
           x: emitX,
           y: emitY,
           vx: windDrift,
-          vy: -35 - Math.random() * 45, // rises high into the sky
+          vy: -48 - Math.random() * 55, // rises high and briskly into the sky
           color: isEmber
             ? (Math.random() > 0.5 ? '#f97316' : '#facc15')
-            : (['#141210', '#1c1917', '#292524', '#44403c', '#57534e', '#78716c'][Math.floor(Math.random() * 6)]),
-          size: (isEmber ? 1.8 : 3.8) + Math.random() * 3.5,
-          maxLife: 1.5 + Math.random() * 0.9,
-          life: 1.5 + Math.random() * 0.9,
+            : (['#0d0c0a', '#171513', '#262320', '#3f3c39', '#57534e', '#78716c'][Math.floor(Math.random() * 6)]),
+          size: (isEmber ? 2.0 : 4.8) + Math.random() * 4.5,
+          maxLife: 2.2 + Math.random() * 1.2,
+          life: 2.2 + Math.random() * 1.2,
           type: isEmber ? 'spark' : 'smoke',
-          alpha: isEmber ? 0.95 : 0.78,
+          alpha: isEmber ? 0.95 : 0.82,
         });
       }
     }
@@ -1694,7 +1801,8 @@ export function useSpitfireGame() {
         particlesRef.current,
         floatingTextsRef.current,
         currentSectorConfig,
-        gameTimeRef.current
+        gameTimeRef.current,
+        groundGunsRef.current
       );
     }
 

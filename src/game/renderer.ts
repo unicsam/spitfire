@@ -1,4 +1,4 @@
-import { Building, Bomb, Missile, Bullet, Particle, FloatingText, SpitfirePlane, SectorConfig } from '../types/game';
+import { Building, Bomb, Missile, Bullet, Particle, FloatingText, SpitfirePlane, SectorConfig, GroundGun } from '../types/game';
 import { GROUND_Y, PALETTE, CANVAS_VIRTUAL_WIDTH, CANVAS_VIRTUAL_HEIGHT } from './constants';
 
 export class GameRenderer {
@@ -38,7 +38,8 @@ export class GameRenderer {
     particles: Particle[] = [],
     floatingTexts: FloatingText[] = [],
     sector: SectorConfig,
-    gameTime: number
+    gameTime: number,
+    groundGuns: GroundGun[] = []
   ) {
     const ctx = this.ctx;
     ctx.save();
@@ -64,6 +65,9 @@ export class GameRenderer {
 
     // 5. Buildings & Perimeter
     this.drawBuildings(buildings, cameraX, sector, gameTime);
+
+    // 5.5 Ground & Rooftop Anti-Aircraft Flak Artillery
+    this.drawGroundGuns(groundGuns, cameraX, gameTime);
 
     // 6. Bomb Trajectory Preview (Gentle tactical guide from plane)
     this.drawAimGuide(plane, cameraX);
@@ -344,6 +348,162 @@ export class GameRenderer {
     const perimScreenX = sector.cityLength - cameraX;
     if (perimScreenX >= -80 && perimScreenX <= CANVAS_VIRTUAL_WIDTH + 80) {
       this.drawPerimeterBoundary(perimScreenX, gameTime);
+    }
+  }
+
+  private drawGroundGuns(groundGuns: GroundGun[], cameraX: number, gameTime: number) {
+    const ctx = this.ctx;
+
+    for (const gun of groundGuns) {
+      const screenX = gun.x - cameraX;
+      if (screenX < -60 || screenX > CANVAS_VIRTUAL_WIDTH + 60) continue;
+
+      ctx.save();
+
+      if (gun.destroyed) {
+        // Destroyed flak emplacement
+        // Scorched blast crater ring
+        ctx.fillStyle = '#171513';
+        ctx.beginPath();
+        ctx.ellipse(screenX, gun.y - 2, 16, 5, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Shattered sandbags / twisted wreckage
+        ctx.fillStyle = '#44403c';
+        ctx.fillRect(screenX - 10, gun.y - 6, 8, 5);
+        ctx.fillRect(screenX + 3, gun.y - 5, 9, 4);
+
+        // Bent barrel lying broken on ground
+        ctx.strokeStyle = '#292524';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(screenX - 2, gun.y - 3);
+        ctx.lineTo(screenX + 14, gun.y - 2);
+        ctx.stroke();
+
+        // Delicate smoke wisp from ruined gun
+        if (Math.sin(gameTime * 6 + gun.x) > 0) {
+          ctx.fillStyle = 'rgba(120, 113, 108, 0.45)';
+          ctx.beginPath();
+          ctx.arc(screenX + (Math.sin(gameTime * 3) * 3), gun.y - 12 - (gameTime % 2) * 5, 2.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        ctx.restore();
+        continue;
+      }
+
+      const isRoof = !!gun.isRooftop;
+      const baseY = gun.y;
+
+      if (!isRoof) {
+        // 1. Street Level Sandbag Revetment / Horseshoe Pit
+        ctx.fillStyle = '#785434';
+        ctx.strokeStyle = '#573c24';
+        ctx.lineWidth = 1;
+
+        // Horseshoe sandbag embankment
+        ctx.beginPath();
+        ctx.ellipse(screenX, baseY - 3, 15, 6, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Individual layered sandbags with highlights
+        const bagColors = ['#8c6340', '#7a5535', '#6b492d'];
+        for (let bx = -12; bx <= 12; bx += 6) {
+          ctx.fillStyle = bagColors[Math.abs(Math.floor(bx / 6)) % bagColors.length];
+          ctx.fillRect(screenX + bx - 2.5, baseY - 7, 5, 4);
+          ctx.strokeStyle = '#4a321d';
+          ctx.strokeRect(screenX + bx - 2.5, baseY - 7, 5, 4);
+        }
+
+        // Steel Turntable Platform
+        ctx.fillStyle = '#334155';
+        ctx.fillRect(screenX - 8, baseY - 9, 16, 4);
+        ctx.fillStyle = '#1e293b';
+        ctx.fillRect(screenX - 5, baseY - 12, 10, 4);
+      } else {
+        // Rooftop Gun Barbette Cupola
+        ctx.fillStyle = '#1e293b';
+        ctx.beginPath();
+        ctx.ellipse(screenX, baseY, 10, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#334155';
+        ctx.fillRect(screenX - 6, baseY - 8, 12, 8);
+      }
+
+      // 2. Rotating Armored Flak Turret & Twin Barrels
+      const pivotY = isRoof ? baseY - 7 : baseY - 11;
+      const recoil = gun.recoilOffset ?? 0;
+      const aim = gun.aimAngle;
+
+      ctx.save();
+      ctx.translate(screenX, pivotY);
+
+      // Angled Gun Shield (behind barrels)
+      ctx.fillStyle = '#475569';
+      ctx.strokeStyle = '#1e293b';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(-6, -4);
+      ctx.lineTo(6, -4);
+      ctx.lineTo(4, 5);
+      ctx.lineTo(-4, 5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Gunner Sight Aperture
+      ctx.fillStyle = '#ef4444';
+      ctx.fillRect(-1.5, -2, 3, 1.5);
+
+      // Rotate gun carriage along aimAngle
+      ctx.rotate(aim);
+
+      // Twin Gun Barrels with Recoil
+      const barrelLen = 15;
+      const barrelSpacing = 2.5;
+
+      ctx.fillStyle = '#0f172a';
+      // Upper barrel
+      ctx.fillRect(-recoil, -barrelSpacing - 1, barrelLen, 2);
+      // Lower barrel
+      ctx.fillRect(-recoil, barrelSpacing - 1, barrelLen, 2);
+
+      // Conical Flash Hiders at barrel tips
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(barrelLen - recoil - 1, -barrelSpacing - 1.5, 3, 3);
+      ctx.fillRect(barrelLen - recoil - 1, barrelSpacing - 1.5, 3, 3);
+
+      // Breech block
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(-4 - recoil, -4, 5, 8);
+
+      // Active Firing Starburst Muzzle Flash
+      if (gun.burstCount > 0 && gun.burstTimer > 0.03) {
+        const flashX = barrelLen - recoil + 3;
+        ctx.fillStyle = '#fef08a';
+        ctx.beginPath();
+        ctx.arc(flashX, -barrelSpacing, 4, 0, Math.PI * 2);
+        ctx.arc(flashX, barrelSpacing, 4, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#f97316';
+        ctx.beginPath();
+        ctx.arc(flashX + 2, -barrelSpacing, 2.5, 0, Math.PI * 2);
+        ctx.arc(flashX + 2, barrelSpacing, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.restore();
+
+      // Ammo Box on Side
+      ctx.fillStyle = '#3f3f46';
+      ctx.fillRect(screenX + 7, baseY - 8, 4, 5);
+      ctx.fillStyle = '#eab308'; // Brass clip
+      ctx.fillRect(screenX + 6, baseY - 7, 2, 3);
+
+      ctx.restore();
     }
   }
 
@@ -811,6 +971,57 @@ export class GameRenderer {
     const ruinHeight = Math.max(34, b.height * 0.38);
     const ruinY = GROUND_Y - ruinHeight;
 
+    // 0. Volumetric Heavy Billowing Wartime Smoke Columns ascending into the sky
+    const smokeTime = gameTime * 1.8;
+    const centerX = screenX + b.width / 2;
+    const plumes = [
+      { xOffset: -b.width * 0.16, phase: 0.2, scale: 1.05, maxH: 145 },
+      { xOffset: b.width * 0.22, phase: 2.3, scale: 0.85, maxH: 120 },
+    ];
+
+    for (const plume of plumes) {
+      const px = centerX + plume.xOffset;
+      const py = ruinY + 8;
+      const smokeGrad = ctx.createLinearGradient(px, py, px + 25, py - plume.maxH);
+      smokeGrad.addColorStop(0, 'rgba(23, 21, 19, 0.78)');
+      smokeGrad.addColorStop(0.3, 'rgba(41, 37, 36, 0.6)');
+      smokeGrad.addColorStop(0.7, 'rgba(87, 83, 78, 0.32)');
+      smokeGrad.addColorStop(1, 'rgba(120, 113, 108, 0)');
+
+      ctx.fillStyle = smokeGrad;
+      ctx.beginPath();
+      ctx.moveTo(px - 14 * plume.scale, py);
+
+      // Left undulating billowing boundary
+      const steps = 5;
+      const stepH = plume.maxH / steps;
+      for (let s = 1; s <= steps; s++) {
+        const currY = py - s * stepH;
+        const widthExpansion = (14 + s * 8) * plume.scale;
+        const drift = Math.sin(smokeTime + plume.phase + s * 0.8) * (6 + s * 4) + (s * 4);
+        ctx.lineTo(px - widthExpansion + drift, currY);
+      }
+
+      // Billowing mushroom cap at top of column
+      const topDrift = Math.sin(smokeTime + plume.phase + 4) * 22 + 18;
+      ctx.quadraticCurveTo(
+        px + topDrift, py - plume.maxH - 14,
+        px + (24 * plume.scale) + topDrift, py - plume.maxH + 6
+      );
+
+      // Right undulating billowing boundary
+      for (let s = steps; s >= 1; s--) {
+        const currY = py - s * stepH;
+        const widthExpansion = (14 + s * 7) * plume.scale;
+        const drift = Math.sin(smokeTime + plume.phase + s * 0.8) * (6 + s * 4) + (s * 4);
+        ctx.lineTo(px + widthExpansion + drift, currY);
+      }
+
+      ctx.lineTo(px + 14 * plume.scale, py);
+      ctx.closePath();
+      ctx.fill();
+    }
+
     // 1. Smoldering Ambient Fire Glow Gradient over the ruin
     const fireGlow = ctx.createRadialGradient(
       screenX + b.width / 2, ruinY + 10, 4,
@@ -946,8 +1157,10 @@ export class GameRenderer {
     const ctx = this.ctx;
     const dir = plane.direction ?? 1;
     const angle = plane.angle;
-    const startX = (plane.x + Math.cos(angle) * (4 * dir) - Math.sin(angle) * 8) - cameraX;
-    const startY = plane.y + Math.sin(angle) * 4 + Math.cos(angle) * 8;
+    const localRackX = 4 * Math.cos(angle) - 8 * Math.sin(angle);
+    const localRackY = 4 * Math.sin(angle) + 8 * Math.cos(angle);
+    const startX = (plane.x + dir * localRackX) - cameraX;
+    const startY = plane.y + localRackY;
 
     let simVx: number;
     let simVy: number;
@@ -1327,7 +1540,7 @@ export class GameRenderer {
       ctx.globalAlpha = alpha;
 
       if (p.type === 'shockwave') {
-        const radius = p.size * (1 - p.life / p.maxLife);
+        const radius = Math.max(0.1, p.size * Math.max(0, 1 - p.life / p.maxLife));
         ctx.strokeStyle = p.color;
         ctx.lineWidth = 3;
         ctx.beginPath();
@@ -1335,16 +1548,17 @@ export class GameRenderer {
         ctx.stroke();
       } else if (p.type === 'smoke') {
         // Realistic billowing smoke puff: expands naturally as it ascends!
-        const expansion = 1 + (1 - p.life / p.maxLife) * 1.6;
-        const currentRadius = p.size * expansion;
+        const expansion = Math.max(0.5, 1 + Math.max(0, 1 - p.life / p.maxLife) * 1.6);
+        const currentRadius = Math.max(0.1, p.size * expansion);
         ctx.fillStyle = p.color;
         ctx.beginPath();
         ctx.arc(screenX, p.y, currentRadius, 0, Math.PI * 2);
         ctx.fill();
       } else {
+        const safeSize = Math.max(0.1, p.size);
         ctx.fillStyle = p.color;
         ctx.beginPath();
-        ctx.arc(screenX, p.y, p.size, 0, Math.PI * 2);
+        ctx.arc(screenX, p.y, safeSize, 0, Math.PI * 2);
         ctx.fill();
       }
 
