@@ -1,13 +1,56 @@
 import { Building, Bomb, Missile, Bullet, Particle, FloatingText, SpitfirePlane, SectorConfig, GroundGun } from '../types/game';
 import { GROUND_Y, PALETTE, CANVAS_VIRTUAL_WIDTH, CANVAS_VIRTUAL_HEIGHT } from './constants';
 
+import intact01 from '../assets/buildings/intact_01.png';
+import intact02 from '../assets/buildings/intact_02.png';
+import intact03 from '../assets/buildings/intact_03.png';
+import intact04 from '../assets/buildings/intact_04.png';
+import intact05 from '../assets/buildings/intact_05.png';
+import intact06 from '../assets/buildings/intact_06.png';
+
+import destroyed01 from '../assets/buildings/destroyed_01.png';
+import destroyed02 from '../assets/buildings/destroyed_02.png';
+import destroyed03 from '../assets/buildings/destroyed_03.png';
+import destroyed04 from '../assets/buildings/destroyed_04.png';
+import destroyed05 from '../assets/buildings/destroyed_05.png';
+import destroyed06 from '../assets/buildings/destroyed_06.png';
+
+import mountainPanoramaSrc from '../assets/parallax/mountain_panorama.png';
+
+const INTACT_SOURCES = [intact01, intact02, intact03, intact04, intact05, intact06];
+const DESTROYED_SOURCES = [destroyed01, destroyed02, destroyed03, destroyed04, destroyed05, destroyed06];
+
 export class GameRenderer {
   private ctx: CanvasRenderingContext2D;
   private shakeTime: number = 0;
   private shakeMagnitude: number = 0;
+  private intactImages: HTMLImageElement[] = [];
+  private destroyedImages: HTMLImageElement[] = [];
+  private mountainPanoramaImg: HTMLImageElement | null = null;
 
   constructor(ctx: CanvasRenderingContext2D) {
     this.ctx = ctx;
+    this.loadBuildingAssets();
+    this.loadParallaxAssets();
+  }
+
+  private loadBuildingAssets() {
+    this.intactImages = INTACT_SOURCES.map(src => {
+      const img = new Image();
+      img.src = src;
+      return img;
+    });
+    this.destroyedImages = DESTROYED_SOURCES.map(src => {
+      const img = new Image();
+      img.src = src;
+      return img;
+    });
+  }
+
+  private loadParallaxAssets() {
+    const img = new Image();
+    img.src = mountainPanoramaSrc;
+    this.mountainPanoramaImg = img;
   }
 
   public triggerScreenShake(magnitude: number = 6, duration: number = 0.25) {
@@ -234,23 +277,75 @@ export class GameRenderer {
 
   private drawDistantHills(cameraX: number, sector: SectorConfig) {
     const ctx = this.ctx;
-    const parX = (cameraX * 0.12) % 400;
+    const img = this.mountainPanoramaImg;
 
-    ctx.save();
-    ctx.fillStyle = sector.skyTheme === 'night' ? '#161e31' : '#b7a89e';
-    ctx.globalAlpha = 0.5;
+    if (img && img.complete && img.naturalWidth > 0) {
+      ctx.save();
+      // Parallax scroll factor (mountains drift smoothly at 0.15 camera speed)
+      const scrollFactor = 0.15;
+      const parX = cameraX * scrollFactor;
 
-    ctx.beginPath();
-    ctx.moveTo(0, GROUND_Y);
-    for (let x = -400; x <= CANVAS_VIRTUAL_WIDTH + 400; x += 120) {
-      const actualX = x - parX;
-      const peakY = 320 + Math.sin(x * 0.015) * 45;
-      ctx.lineTo(actualX, peakY);
+      // Render dimensions for the mountain panorama
+      // Aspect ratio of mountain image: 1958 x 803 (~2.44)
+      const renderHeight = 310;
+      const renderWidth = (renderHeight / img.naturalHeight) * img.naturalWidth;
+      const renderY = GROUND_Y - renderHeight + 25; // Sits naturally resting on ground/skyline
+
+      // Subtle atmospheric tint matching night/dawn/sunset sectors
+      if (sector.skyTheme === 'night' || sector.skyTheme === 'midnight_crimson') {
+        ctx.globalAlpha = 0.65;
+      } else if (sector.skyTheme === 'stormy' || sector.skyTheme === 'overcast') {
+        ctx.globalAlpha = 0.85;
+      } else {
+        ctx.globalAlpha = 0.95;
+      }
+
+      // Calculate the start tile index based on parX
+      const startTileIndex = Math.floor(parX / renderWidth) - 1;
+      const endTileIndex = Math.ceil((parX + CANVAS_VIRTUAL_WIDTH) / renderWidth) + 1;
+
+      for (let tileIdx = startTileIndex; tileIdx <= endTileIndex; tileIdx++) {
+        const tileLeftX = tileIdx * renderWidth - parX;
+        // Check if tile is within or near screen viewport
+        if (tileLeftX + renderWidth < -50 || tileLeftX > CANVAS_VIRTUAL_WIDTH + 50) continue;
+
+        // "flip horizontally every other layer":
+        // For odd tile indices, flip horizontally so mountain ridges match up seamlessly and alternate!
+        const isFlipped = Math.abs(tileIdx) % 2 === 1;
+
+        ctx.save();
+        if (isFlipped) {
+          // Mirror horizontally around tile center
+          ctx.translate(tileLeftX + renderWidth, renderY);
+          ctx.scale(-1, 1);
+          ctx.drawImage(img, 0, 0, renderWidth, renderHeight);
+        } else {
+          ctx.drawImage(img, tileLeftX, renderY, renderWidth, renderHeight);
+        }
+        ctx.restore();
+      }
+
+      ctx.restore();
+    } else {
+      // Fallback vector hills while asset is loading
+      const parX = (cameraX * 0.12) % 400;
+
+      ctx.save();
+      ctx.fillStyle = sector.skyTheme === 'night' ? '#161e31' : '#b7a89e';
+      ctx.globalAlpha = 0.5;
+
+      ctx.beginPath();
+      ctx.moveTo(0, GROUND_Y);
+      for (let x = -400; x <= CANVAS_VIRTUAL_WIDTH + 400; x += 120) {
+        const actualX = x - parX;
+        const peakY = 320 + Math.sin(x * 0.015) * 45;
+        ctx.lineTo(actualX, peakY);
+      }
+      ctx.lineTo(CANVAS_VIRTUAL_WIDTH, GROUND_Y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
     }
-    ctx.lineTo(CANVAS_VIRTUAL_WIDTH, GROUND_Y);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
   }
 
   private drawMidgroundSkyline(cameraX: number, sector: SectorConfig) {
@@ -888,76 +983,83 @@ export class GameRenderer {
   private drawCivilianBuilding(b: Building, screenX: number, topY: number) {
     const ctx = this.ctx;
 
-    // Drop shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.15)';
-    ctx.fillRect(screenX - 3, topY + 4, b.width, b.height);
+    // If an intact image asset is available for this variant, render the high-res building asset
+    const variantIdx = b.assetVariant ? (b.assetVariant - 1) : 0;
+    const img = this.intactImages[variantIdx];
 
-    // Main Facade
-    ctx.fillStyle = b.themeStyle.baseColor;
-    ctx.fillRect(screenX, topY, b.width, b.height);
+    if (img && img.complete && img.naturalWidth > 0) {
+      // Ground contact shadow strictly underneath the building base (no dark box behind transparent parts)
+      ctx.fillStyle = 'rgba(0,0,0,0.28)';
+      ctx.beginPath();
+      ctx.ellipse(screenX + b.width / 2, GROUND_Y - 1, b.width * 0.48, 4, 0, 0, Math.PI * 2);
+      ctx.fill();
 
-    // Roof Styling
-    if (b.themeStyle.roofType === 'gable') {
-      // Triangle pitch roof
-      ctx.fillStyle = '#475569';
-      ctx.beginPath();
-      ctx.moveTo(screenX - 4, topY);
-      ctx.lineTo(screenX + b.width / 2, topY - 26);
-      ctx.lineTo(screenX + b.width + 4, topY);
-      ctx.closePath();
-      ctx.fill();
-      // Chimney
-      ctx.fillStyle = '#78350f';
-      ctx.fillRect(screenX + b.width - 18, topY - 32, 10, 20);
-    } else if (b.themeStyle.roofType === 'mansard') {
-      // Victorian Mansard roof
-      ctx.fillStyle = '#334155';
-      ctx.beginPath();
-      ctx.moveTo(screenX - 3, topY);
-      ctx.lineTo(screenX + 8, topY - 22);
-      ctx.lineTo(screenX + b.width - 8, topY - 22);
-      ctx.lineTo(screenX + b.width + 3, topY);
-      ctx.closePath();
-      ctx.fill();
-    } else if (b.themeStyle.roofType === 'dome') {
-      // Clock tower or church dome
-      ctx.fillStyle = '#0f766e';
-      ctx.beginPath();
-      ctx.arc(screenX + b.width / 2, topY, b.width * 0.45, Math.PI, 0);
-      ctx.fill();
-      // Weather vane / finial
-      ctx.strokeStyle = '#e2e8f0';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(screenX + b.width / 2, topY - b.width * 0.45);
-      ctx.lineTo(screenX + b.width / 2, topY - b.width * 0.45 - 14);
-      ctx.stroke();
+      // Crisp image rendering with transparent background perfectly preserved
+      ctx.drawImage(img, screenX, topY, b.width, b.height);
     } else {
-      // Flat decorative cornice
-      ctx.fillStyle = '#e2e8f0';
-      ctx.fillRect(screenX - 3, topY - 8, b.width + 6, 8);
-    }
+      // Fallback vector facade
+      ctx.fillStyle = 'rgba(0,0,0,0.15)';
+      ctx.fillRect(screenX - 3, topY + 4, b.width, b.height);
 
-    // Windows with warm amber lighting
-    const winW = 10;
-    const winH = 14;
-    ctx.fillStyle = '#fef08a'; // Warm light
-    for (let row = 1; row <= b.themeStyle.windowRows; row++) {
-      const wy = topY + 14 + row * 26;
-      if (wy > GROUND_Y - 20) break;
-      for (let col = 0; col < b.themeStyle.windowCols; col++) {
-        const wx = screenX + 10 + col * 20;
-        ctx.fillRect(wx, wy, winW, winH);
-        // Window frame
-        ctx.strokeStyle = '#78350f';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(wx, wy, winW, winH);
+      ctx.fillStyle = b.themeStyle.baseColor;
+      ctx.fillRect(screenX, topY, b.width, b.height);
+
+      // Roof Styling
+      if (b.themeStyle.roofType === 'gable') {
+        ctx.fillStyle = '#475569';
+        ctx.beginPath();
+        ctx.moveTo(screenX - 4, topY);
+        ctx.lineTo(screenX + b.width / 2, topY - 26);
+        ctx.lineTo(screenX + b.width + 4, topY);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = '#78350f';
+        ctx.fillRect(screenX + b.width - 18, topY - 32, 10, 20);
+      } else if (b.themeStyle.roofType === 'mansard') {
+        ctx.fillStyle = '#334155';
+        ctx.beginPath();
+        ctx.moveTo(screenX - 3, topY);
+        ctx.lineTo(screenX + 8, topY - 22);
+        ctx.lineTo(screenX + b.width - 8, topY - 22);
+        ctx.lineTo(screenX + b.width + 3, topY);
+        ctx.closePath();
+        ctx.fill();
+      } else if (b.themeStyle.roofType === 'dome') {
+        ctx.fillStyle = '#0f766e';
+        ctx.beginPath();
+        ctx.arc(screenX + b.width / 2, topY, b.width * 0.45, Math.PI, 0);
+        ctx.fill();
+        ctx.strokeStyle = '#e2e8f0';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(screenX + b.width / 2, topY - b.width * 0.45);
+        ctx.lineTo(screenX + b.width / 2, topY - b.width * 0.45 - 14);
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = '#e2e8f0';
+        ctx.fillRect(screenX - 3, topY - 8, b.width + 6, 8);
       }
-    }
 
-    // Front Door
-    ctx.fillStyle = '#451a03';
-    ctx.fillRect(screenX + b.width / 2 - 8, GROUND_Y - 22, 16, 22);
+      // Windows with warm amber lighting
+      const winW = 10;
+      const winH = 14;
+      ctx.fillStyle = '#fef08a';
+      for (let row = 1; row <= b.themeStyle.windowRows; row++) {
+        const wy = topY + 14 + row * 26;
+        if (wy > GROUND_Y - 20) break;
+        for (let col = 0; col < b.themeStyle.windowCols; col++) {
+          const wx = screenX + 10 + col * 20;
+          ctx.fillRect(wx, wy, winW, winH);
+          ctx.strokeStyle = '#78350f';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(wx, wy, winW, winH);
+        }
+      }
+
+      // Front Door
+      ctx.fillStyle = '#451a03';
+      ctx.fillRect(screenX + b.width / 2 - 8, GROUND_Y - 22, 16, 22);
+    }
 
     // Subtle Spared / Civilian indicator (small shield, very clean)
     ctx.font = '600 9px "Outfit", sans-serif';
@@ -968,7 +1070,7 @@ export class GameRenderer {
 
   private drawDestroyedBuilding(b: Building, screenX: number, topY: number, gameTime: number) {
     const ctx = this.ctx;
-    const ruinHeight = Math.max(34, b.height * 0.38);
+    const ruinHeight = Math.max(34, b.height * 0.45);
     const ruinY = GROUND_Y - ruinHeight;
 
     // 0. Volumetric Heavy Billowing Wartime Smoke Columns ascending into the sky
@@ -1033,116 +1135,131 @@ export class GameRenderer {
     ctx.fillStyle = fireGlow;
     ctx.fillRect(screenX - 25, ruinY - 35, b.width + 50, ruinHeight + 40);
 
-    // 2. Blackened & Scorched Jagged Masonry Wall Ruin
-    ctx.fillStyle = '#171513';
-    ctx.beginPath();
-    ctx.moveTo(screenX - 2, GROUND_Y);
-    ctx.lineTo(screenX, ruinY + 14);
-    ctx.lineTo(screenX + b.width * 0.16, ruinY + 6);
-    ctx.lineTo(screenX + b.width * 0.28, ruinY + 18);
-    ctx.lineTo(screenX + b.width * 0.46, ruinY + 2); // broken corner pinnacle
-    ctx.lineTo(screenX + b.width * 0.62, ruinY + 16);
-    ctx.lineTo(screenX + b.width * 0.78, ruinY + 5);
-    ctx.lineTo(screenX + b.width + 2, ruinY + 18);
-    ctx.lineTo(screenX + b.width + 4, GROUND_Y);
-    ctx.closePath();
-    ctx.fill();
+    // If civilian building with a destroyed asset image, render the high-detail destroyed ruin asset
+    const variantIdx = b.assetVariant ? (b.assetVariant - 1) : 0;
+    const destImg = this.destroyedImages[variantIdx];
 
-    // Heavy charred outline with fractured cracks
-    ctx.strokeStyle = '#0c0a09';
-    ctx.lineWidth = 2.5;
-    ctx.stroke();
+    if (b.type === 'CIVILIAN' && destImg && destImg.complete && destImg.naturalWidth > 0) {
+      // Calculate realistic ruin height based on destroyed asset aspect ratio
+      const destAspect = destImg.naturalHeight / destImg.naturalWidth;
+      const destRenderWidth = b.width * 1.15;
+      const destRenderHeight = destRenderWidth * destAspect;
+      const destX = screenX - (destRenderWidth - b.width) / 2;
+      const destY = GROUND_Y - destRenderHeight;
 
-    // 3. Exposed Twisted Metal I-Beams & Rebar protruding from wreckage
-    ctx.strokeStyle = '#44403c';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.moveTo(screenX + b.width * 0.3, ruinY + 15);
-    ctx.lineTo(screenX + b.width * 0.25, ruinY - 10);
-    ctx.lineTo(screenX + b.width * 0.2, ruinY - 14);
-    ctx.moveTo(screenX + b.width * 0.7, ruinY + 12);
-    ctx.lineTo(screenX + b.width * 0.75, ruinY - 8);
-    ctx.stroke();
+      // Drop shadow under wreckage
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.beginPath();
+      ctx.ellipse(screenX + b.width / 2, GROUND_Y - 2, destRenderWidth * 0.45, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
 
-    // 4. Exposed Charred Brick Layers & Soot Stains
-    ctx.fillStyle = '#78350f';
-    for (let by = ruinY + 16; by < GROUND_Y - 10; by += 8) {
-      ctx.fillRect(screenX + 4, by, 8, 4);
-      ctx.fillRect(screenX + b.width - 12, by + 3, 7, 4);
+      ctx.drawImage(destImg, destX, destY, destRenderWidth, destRenderHeight);
+    } else {
+      // 2. Blackened & Scorched Jagged Masonry Wall Ruin (Fallback / Enemy Ruins)
+      ctx.fillStyle = '#171513';
+      ctx.beginPath();
+      ctx.moveTo(screenX - 2, GROUND_Y);
+      ctx.lineTo(screenX, ruinY + 14);
+      ctx.lineTo(screenX + b.width * 0.16, ruinY + 6);
+      ctx.lineTo(screenX + b.width * 0.28, ruinY + 18);
+      ctx.lineTo(screenX + b.width * 0.46, ruinY + 2); // broken corner pinnacle
+      ctx.lineTo(screenX + b.width * 0.62, ruinY + 16);
+      ctx.lineTo(screenX + b.width * 0.78, ruinY + 5);
+      ctx.lineTo(screenX + b.width + 2, ruinY + 18);
+      ctx.lineTo(screenX + b.width + 4, GROUND_Y);
+      ctx.closePath();
+      ctx.fill();
+
+      // Heavy charred outline with fractured cracks
+      ctx.strokeStyle = '#0c0a09';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
+      // 3. Exposed Twisted Metal I-Beams & Rebar protruding from wreckage
+      ctx.strokeStyle = '#44403c';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(screenX + b.width * 0.3, ruinY + 15);
+      ctx.lineTo(screenX + b.width * 0.25, ruinY - 10);
+      ctx.lineTo(screenX + b.width * 0.2, ruinY - 14);
+      ctx.moveTo(screenX + b.width * 0.7, ruinY + 12);
+      ctx.lineTo(screenX + b.width * 0.75, ruinY - 8);
+      ctx.stroke();
+
+      // 4. Exposed Charred Brick Layers & Soot Stains
+      ctx.fillStyle = '#78350f';
+      for (let by = ruinY + 16; by < GROUND_Y - 10; by += 8) {
+        ctx.fillRect(screenX + 4, by, 8, 4);
+        ctx.fillRect(screenX + b.width - 12, by + 3, 7, 4);
+      }
+
+      // 5. Blown-out charred window frames with red glowing interior
+      const winW = 7;
+      const winH = 9;
+      for (let wy = ruinY + 18; wy < GROUND_Y - 16; wy += 18) {
+        ctx.fillStyle = '#0a0a0a';
+        ctx.fillRect(screenX + 12, wy, winW, winH);
+        ctx.fillRect(screenX + b.width - 20, wy, winW, winH);
+        ctx.fillStyle = 'rgba(234, 88, 12, 0.65)';
+        ctx.fillRect(screenX + 13, wy + winH - 3, winW - 2, 2.5);
+      }
+
+      // 6. Active Smoldering Fire Tongues licking from rubble
+      const flicker1 = Math.sin(gameTime * 9 + screenX) * 4;
+      const flicker2 = Math.cos(gameTime * 11 + screenX) * 5;
+      ctx.fillStyle = '#ea580c';
+      ctx.beginPath();
+      ctx.moveTo(screenX + b.width * 0.35, ruinY + 14);
+      ctx.lineTo(screenX + b.width * 0.42, ruinY - 6 + flicker1);
+      ctx.lineTo(screenX + b.width * 0.48, ruinY + 12);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = '#f59e0b';
+      ctx.beginPath();
+      ctx.moveTo(screenX + b.width * 0.55, ruinY + 16);
+      ctx.lineTo(screenX + b.width * 0.62, ruinY - 4 + flicker2);
+      ctx.lineTo(screenX + b.width * 0.68, ruinY + 14);
+      ctx.closePath();
+      ctx.fill();
+
+      // 7. Crumbled Angular Masonry & Shattered Concrete Slabs
+      ctx.fillStyle = '#292524';
+      ctx.beginPath();
+      ctx.moveTo(screenX - 4, GROUND_Y);
+      ctx.lineTo(screenX + 2, GROUND_Y - 9);
+      ctx.lineTo(screenX + 11, GROUND_Y - 12);
+      ctx.lineTo(screenX + 19, GROUND_Y - 5);
+      ctx.lineTo(screenX + 24, GROUND_Y);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(screenX + b.width * 0.35, GROUND_Y);
+      ctx.lineTo(screenX + b.width * 0.44, GROUND_Y - 10);
+      ctx.lineTo(screenX + b.width * 0.54, GROUND_Y - 8);
+      ctx.lineTo(screenX + b.width * 0.65, GROUND_Y);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(screenX + b.width - 24, GROUND_Y);
+      ctx.lineTo(screenX + b.width - 15, GROUND_Y - 11);
+      ctx.lineTo(screenX + b.width - 4, GROUND_Y - 6);
+      ctx.lineTo(screenX + b.width + 4, GROUND_Y);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = '#78350f';
+      ctx.fillRect(screenX + 5, GROUND_Y - 6, 6, 3);
+      ctx.fillRect(screenX + b.width * 0.46, GROUND_Y - 7, 7, 4);
+      ctx.fillRect(screenX + b.width - 15, GROUND_Y - 5, 5, 3);
+
+      ctx.fillStyle = '#f97316';
+      ctx.fillRect(screenX + 10, GROUND_Y - 8, b.width - 20, 3);
+      ctx.fillStyle = '#fef08a';
+      ctx.fillRect(screenX + 16, GROUND_Y - 7, b.width * 0.4, 1.5);
     }
-
-    // 5. Blown-out charred window frames with red glowing interior
-    const winW = 7;
-    const winH = 9;
-    for (let wy = ruinY + 18; wy < GROUND_Y - 16; wy += 18) {
-      ctx.fillStyle = '#0a0a0a';
-      ctx.fillRect(screenX + 12, wy, winW, winH);
-      ctx.fillRect(screenX + b.width - 20, wy, winW, winH);
-      // Ember glow inside window cavity
-      ctx.fillStyle = 'rgba(234, 88, 12, 0.65)';
-      ctx.fillRect(screenX + 13, wy + winH - 3, winW - 2, 2.5);
-    }
-
-    // 6. Active Smoldering Fire Tongues licking from rubble
-    const flicker1 = Math.sin(gameTime * 9 + screenX) * 4;
-    const flicker2 = Math.cos(gameTime * 11 + screenX) * 5;
-    ctx.fillStyle = '#ea580c';
-    ctx.beginPath();
-    ctx.moveTo(screenX + b.width * 0.35, ruinY + 14);
-    ctx.lineTo(screenX + b.width * 0.42, ruinY - 6 + flicker1);
-    ctx.lineTo(screenX + b.width * 0.48, ruinY + 12);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.fillStyle = '#f59e0b';
-    ctx.beginPath();
-    ctx.moveTo(screenX + b.width * 0.55, ruinY + 16);
-    ctx.lineTo(screenX + b.width * 0.62, ruinY - 4 + flicker2);
-    ctx.lineTo(screenX + b.width * 0.68, ruinY + 14);
-    ctx.closePath();
-    ctx.fill();
-
-    // 7. Crumbled Angular Masonry & Shattered Concrete Slabs (NO CIRCLES / NO WHEELS)
-    ctx.fillStyle = '#292524';
-    // Left jagged rubble heap
-    ctx.beginPath();
-    ctx.moveTo(screenX - 4, GROUND_Y);
-    ctx.lineTo(screenX + 2, GROUND_Y - 9);
-    ctx.lineTo(screenX + 11, GROUND_Y - 12);
-    ctx.lineTo(screenX + 19, GROUND_Y - 5);
-    ctx.lineTo(screenX + 24, GROUND_Y);
-    ctx.closePath();
-    ctx.fill();
-
-    // Center jagged rubble heap
-    ctx.beginPath();
-    ctx.moveTo(screenX + b.width * 0.35, GROUND_Y);
-    ctx.lineTo(screenX + b.width * 0.44, GROUND_Y - 10);
-    ctx.lineTo(screenX + b.width * 0.54, GROUND_Y - 8);
-    ctx.lineTo(screenX + b.width * 0.65, GROUND_Y);
-    ctx.closePath();
-    ctx.fill();
-
-    // Right jagged rubble heap
-    ctx.beginPath();
-    ctx.moveTo(screenX + b.width - 24, GROUND_Y);
-    ctx.lineTo(screenX + b.width - 15, GROUND_Y - 11);
-    ctx.lineTo(screenX + b.width - 4, GROUND_Y - 6);
-    ctx.lineTo(screenX + b.width + 4, GROUND_Y);
-    ctx.closePath();
-    ctx.fill();
-
-    // Shattered angular brick chunks
-    ctx.fillStyle = '#78350f';
-    ctx.fillRect(screenX + 5, GROUND_Y - 6, 6, 3);
-    ctx.fillRect(screenX + b.width * 0.46, GROUND_Y - 7, 7, 4);
-    ctx.fillRect(screenX + b.width - 15, GROUND_Y - 5, 5, 3);
-
-    // Glowing ember beds among the rubble
-    ctx.fillStyle = '#f97316';
-    ctx.fillRect(screenX + 10, GROUND_Y - 8, b.width - 20, 3);
-    ctx.fillStyle = '#fef08a';
-    ctx.fillRect(screenX + 16, GROUND_Y - 7, b.width * 0.4, 1.5);
 
     // 8. Stenciled Status Marker
     ctx.font = '800 9px "JetBrains Mono", monospace';

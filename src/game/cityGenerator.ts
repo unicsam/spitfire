@@ -213,8 +213,20 @@ export function generateSectorBuildings(config: SectorConfig): Building[] {
         currentX += width + spacing;
       }
     } else {
-      const width = 40 + Math.floor(Math.random() * 24);
-      const height = 50 + Math.floor(Math.random() * 55);
+      // Civilian buildings using the new building assets (intact_01..06 and destroyed_01..06)
+      const assetVariant = (civilianCounter % 6) + 1;
+      // Proportions matching the PNG aspect ratios (approx 50-62px wide, 85-115px tall, safe below cruise altitude y=150)
+      const variantSpecs: Record<number, { width: number; height: number }> = {
+        1: { width: 54, height: 90 },   // 230 x 380 (ratio 1.65)
+        2: { width: 56, height: 92 },   // 246 x 397 (ratio 1.61)
+        3: { width: 58, height: 84 },   // 242 x 349 (ratio 1.44)
+        4: { width: 52, height: 110 },  // 227 x 493 (ratio 2.17, taller high-rise)
+        5: { width: 54, height: 92 },   // 222 x 376 (ratio 1.69)
+        6: { width: 62, height: 78 },   // 260 x 324 (ratio 1.25, wider townhouse)
+      };
+      const spec = variantSpecs[assetVariant] ?? { width: 55, height: 90 };
+      const width = spec.width;
+      const height = spec.height;
       const name = CIVILIAN_NAMES[civilianCounter % CIVILIAN_NAMES.length];
       civilianCounter++;
 
@@ -233,6 +245,7 @@ export function generateSectorBuildings(config: SectorConfig): Building[] {
         maxHp: 1,
         destroyed: false,
         name,
+        assetVariant,
         themeStyle: {
           baseColor,
           trimColor: '#f1e6d0',

@@ -12,6 +12,7 @@ export interface Building {
   maxHp: number;
   destroyed: boolean;
   name: string;
+  assetVariant?: number; // 1 to 6 for intact_01..06 and destroyed_01..06
   themeStyle: {
     baseColor: string;
     trimColor: string;
